@@ -17,7 +17,6 @@ exports._decode = function(audio) {
       var orig = new Uint8Array(arrayBuffer);
       var buf = Module._malloc(orig.length);
       Module.HEAPU8.set(orig, buf);
-      console.log(orig.length);
 
       var ptrSize = 4;
       var resultBufPtr = Module._malloc(ptrSize);
@@ -25,19 +24,12 @@ exports._decode = function(audio) {
       var res = decodeVorbis(buf, orig.length, resultBufPtr, numSamplesPtr);
       var resultBuf = Module.getValue(resultBufPtr, '*');
       var numSamples = Module.getValue(numSamplesPtr, 'i64');
-      console.log(res);
-      console.log(resultBuf);
-      console.log(numSamples);
-    
       Module._free(buf); // No longer needed
 
       // samples are (big-endian) 16-bit signed integers, two channels => multiply by 4
       var resultArray = new Int16Array(Module.HEAPU8.slice(resultBuf, resultBuf + numSamples * 4).buffer);
 
-      console.log(resultArray);
-
       // TODO: Get channels, length, sample rate?
-      // var numSamples = resultBufLen / 2 / 2; // div by channels and 2 bytes
       var resultAudioBuf = audioContext.createBuffer(2, numSamples, 48000); // allocate buffers
       for (var c = 0; c < 2; c++) {
         var buffer = resultAudioBuf.getChannelData(c);
@@ -45,7 +37,6 @@ exports._decode = function(audio) {
           buffer[i] = resultArray[2*i + c] / 32767;
         }
       }
-//      var promise = audioContext.decodeAudioData(arrayBuffer, onSuccess, onError);
 
       return resultAudioBuf;
     };
