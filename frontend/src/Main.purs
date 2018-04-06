@@ -70,18 +70,19 @@ player audio audioData =
 main :: Eff (ajax :: AJAX, audio :: AUDIO, console :: CONSOLE | HA.HalogenEffects ()) Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
-  arrayBuffer1 <- H.liftAff (get "http://192.168.2.33:8080/get/out000.ogg")
-  arrayBuffer2 <- H.liftAff (get "http://192.168.2.33:8080/get/out001.ogg")
-  arrayBuffer3 <- H.liftAff (get "http://192.168.2.33:8080/get/out002.ogg")
+  let baseUri = "http://localhost:8099"
+  arrayBuffer1 <- H.liftAff (get (baseUri <> "/get/out000-v.ogg"))
+  arrayBuffer2 <- H.liftAff (get (baseUri <> "/get/out001-v.ogg"))
+  arrayBuffer3 <- H.liftAff (get (baseUri <> "/get/out002-v.ogg"))
   audio <- H.liftEff initAudio
-  audioData1 <- H.liftAff (decode audio arrayBuffer1.response)
-  audioData2 <- H.liftAff (decode audio arrayBuffer2.response)
-  audioData3 <- H.liftAff (decode audio arrayBuffer3.response)
+  audioData1 <- H.liftEff (decode audio arrayBuffer1.response)
+  audioData2 <- H.liftEff (decode audio arrayBuffer2.response)
+  audioData3 <- H.liftEff (decode audio arrayBuffer3.response)
   H.liftEff (log (show (bufferLength audioData1)))
   H.liftEff (log (show (bufferLength audioData2)))
   H.liftEff (log (show (duration audioData1)))
   H.liftEff (log (show (duration audioData2)))
-  H.liftEff (schedule audio audioData1 2.0)
-  H.liftEff (schedule audio audioData2 (2.0 + duration audioData1))
-  H.liftEff (schedule audio audioData3 (2.0 + duration audioData1 + duration audioData2))
+  H.liftEff (schedule audio audioData1 1.0)
+  H.liftEff (schedule audio audioData2 (1.0 + duration audioData1))
+  H.liftEff (schedule audio audioData3 (1.0 + duration audioData1 + duration audioData2))
   runUI (player audio audioData1) unit body

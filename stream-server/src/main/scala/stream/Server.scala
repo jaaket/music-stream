@@ -35,5 +35,5 @@ object Server extends App with PredefinedToEntityMarshallers {
     }
 
 
-  Http().bindAndHandle(route, "0.0.0.0", 8080)
+  Http().bindAndHandle(route, "0.0.0.0", 8099)
 }

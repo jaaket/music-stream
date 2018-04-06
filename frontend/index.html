@@ -33,6 +33,15 @@
     player.connect();
   };*/
   </script>
+  <script type="text/javascript">
+    var Module = {
+      onRuntimeInitialized: function() {
+        hello = Module.cwrap('hello', 'int', []);
+        decodeVorbis = Module.cwrap('decodeVorbis', 'int', ['number', 'number', 'number', 'number']);
+      }
+    };
+  </script>
+  <script src="hello.js"></script>
   <script src="output/app.js"></script>
 </body>
 </html>
