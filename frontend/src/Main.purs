@@ -26,7 +26,7 @@ data Query a
   = Toggle a
   | IsPlaying (Boolean -> a)
 
-player :: forall e. Audio -> AudioBuffer -> H.Component HH.HTML Query Unit Void (Aff (audio :: AUDIO | e)) 
+player :: forall e. Audio -> AudioBuffer -> H.Component HH.HTML Query Unit Void (Aff (audio :: AUDIO | e))
 player audio audioData =
   H.component
     { initialState: const initialState
@@ -54,7 +54,7 @@ player audio audioData =
 
   eval :: Query ~> H.ComponentDSL State Query Void (Aff (audio :: AUDIO | e))
   eval = case _ of
-    Toggle next -> do      
+    Toggle next -> do
       playing <- H.gets _.playing
       let nextPlaying = not playing
       if nextPlaying
@@ -71,9 +71,9 @@ main :: Eff (ajax :: AJAX, audio :: AUDIO, console :: CONSOLE | HA.HalogenEffect
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   let baseUri = "http://localhost:8099"
-  arrayBuffer1 <- H.liftAff (get (baseUri <> "/get/out000-v.ogg"))
-  arrayBuffer2 <- H.liftAff (get (baseUri <> "/get/out001-v.ogg"))
-  arrayBuffer3 <- H.liftAff (get (baseUri <> "/get/out002-v.ogg"))
+  arrayBuffer1 <- H.liftAff (get (baseUri <> "/get/out000.ogg"))
+  arrayBuffer2 <- H.liftAff (get (baseUri <> "/get/out001.ogg"))
+  arrayBuffer3 <- H.liftAff (get (baseUri <> "/get/out002.ogg"))
   audio <- H.liftEff initAudio
   audioData1 <- H.liftEff (decode audio arrayBuffer1.response)
   audioData2 <- H.liftEff (decode audio arrayBuffer2.response)

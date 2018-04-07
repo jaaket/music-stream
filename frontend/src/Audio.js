@@ -5,6 +5,7 @@ exports._initAudio = function() {
 
   return {
     audioContext: audioContext,
+    prevVfPtr: 0,
     sourceNode: null
   };
 }
@@ -21,16 +22,18 @@ exports._decode = function(audio) {
       var ptrSize = 4;
       var resultBufPtr = Module._malloc(ptrSize);
       var numSamplesPtr = Module._malloc(ptrSize);
-      var res = decodeVorbis(buf, orig.length, resultBufPtr, numSamplesPtr);
+      var resultVfPtrPtr = Module._malloc(ptrSize);
+      var res = decodeVorbis(audio.prevVfPtr, buf, orig.length, resultBufPtr, numSamplesPtr, resultVfPtrPtr);
+      audio.prevVfPtr = Module.getValue(resultVfPtrPtr, '*');
       var resultBuf = Module.getValue(resultBufPtr, '*');
       var numSamples = Module.getValue(numSamplesPtr, 'i64');
-      Module._free(buf); // No longer needed
+      // Module._free(buf); // No longer needed
 
       // samples are (big-endian) 16-bit signed integers, two channels => multiply by 4
       var resultArray = new Int16Array(Module.HEAPU8.slice(resultBuf, resultBuf + numSamples * 4).buffer);
 
       // TODO: Get channels, length, sample rate?
-      var resultAudioBuf = audioContext.createBuffer(2, numSamples, 48000); // allocate buffers
+      var resultAudioBuf = audioContext.createBuffer(2, numSamples, 44100); // allocate buffers
       for (var c = 0; c < 2; c++) {
         var buffer = resultAudioBuf.getChannelData(c);
         for (var i = 0; i < numSamples; i++) {

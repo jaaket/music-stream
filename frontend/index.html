@@ -37,7 +37,7 @@
     var Module = {
       onRuntimeInitialized: function() {
         hello = Module.cwrap('hello', 'int', []);
-        decodeVorbis = Module.cwrap('decodeVorbis', 'int', ['number', 'number', 'number', 'number']);
+        decodeVorbis = Module.cwrap('decodeVorbis', 'int', ['number', 'number', 'number', 'number', 'number', 'number']);
       }
     };
   </script>

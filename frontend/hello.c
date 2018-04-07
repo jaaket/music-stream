@@ -74,15 +74,19 @@ long mem_tell(mem_state *ds) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-int decodeVorbis(char* input, int n, char** output, long* output_samples) {
-    ov_callbacks callbacks = {        
+int decodeVorbis(OggVorbis_File *prev_vf, char* input, int n, char** output, long* output_samples, OggVorbis_File **vf) {
+    printf("prev_vf: %p\n", prev_vf);
+    printf("vf: %p\n", vf);
+
+    ov_callbacks callbacks = {
         .read_func = (size_t (*)(void*, size_t, size_t, void*)) mem_read,
         .seek_func = (int (*)(void*, ogg_int64_t, int)) mem_seek,
         .close_func = NULL,
         .tell_func = (long (*)(void*)) mem_tell
     };
 
-    OggVorbis_File vf;
+    *vf = calloc(1, sizeof(OggVorbis_File));
+    printf("*vf: %p\n", *vf);
 
     mem_state state = {
         .data = input,
@@ -91,14 +95,17 @@ int decodeVorbis(char* input, int n, char** output, long* output_samples) {
         .total_bytes = n
     };
 
-    long rv = ov_open_callbacks(&state, &vf, NULL, 0, callbacks);
+    long rv = ov_open_callbacks(&state, *vf, NULL, 0, callbacks);
 
     if (rv < 0) {
         printf("Failed to initialize vorbisfile: %ld\n", rv);
         return rv;
     }
 
-    ogg_int64_t total_samples = ov_pcm_total(&vf, -1);
+    printf("offset: %lld\n", (*vf)->offset);
+    printf("end: %lld\n", (*vf)->end);
+
+    ogg_int64_t total_samples = ov_pcm_total(*vf, -1);
     if (total_samples < 0) {
         printf("Could not determine number of samples: %lld\n", total_samples);
         return -1;
@@ -111,11 +118,15 @@ int decodeVorbis(char* input, int n, char** output, long* output_samples) {
     // Allocate output buffer
     *output = malloc(total_samples * 2 * 2);
 
+    if (prev_vf) {
+        ov_crosslap(prev_vf, *vf);
+    }
+
     long total_read = 0;
     long bytes_read;
     do {
         int bitstream;
-        bytes_read = ov_read(&vf, *output + total_read, 4096, 0, 2, 1, &bitstream);
+        bytes_read = ov_read(*vf, *output + total_read, 4096, 0, 2, 1, &bitstream);
         // printf("bitstream: %d\n", bitstream);
         if (bytes_read < 0) {
             printf("Failed to decode: %ld\n", bytes_read);
@@ -132,7 +143,7 @@ int decodeVorbis(char* input, int n, char** output, long* output_samples) {
     printf("num_streams: %ld\n", num_streams);
     long serialnumber = ov_serialnumber(&vf, 1);
     printf("serialnumber: %ld\n", serialnumber);*/
-    
+
     return 0;
 }
 
