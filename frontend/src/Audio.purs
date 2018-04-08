@@ -23,10 +23,18 @@ foreign import bufferLength :: forall e. AudioBuffer -> Number
 schedule :: forall e. Audio -> AudioBuffer -> Number -> Eff (audio :: AUDIO | e) Unit
 schedule = _schedule
 
-stopPlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
-stopPlayback = _stopPlayback
+enqueue :: forall e. Audio -> AudioBuffer -> Eff (audio :: AUDIO | e) Unit
+enqueue = _enqueue
+
+startPlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
+startPlayback = _startPlayback
+
+pausePlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
+pausePlayback = _pausePlayback
 
 foreign import _initAudio :: forall e. Eff (audio :: AUDIO | e) Audio
 foreign import _decode :: forall e. Audio -> ArrayBuffer -> Eff (audio :: AUDIO | e) AudioBuffer
 foreign import _schedule :: forall e. Audio -> AudioBuffer -> Number -> Eff (audio :: AUDIO | e) Unit
-foreign import _stopPlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
+foreign import _enqueue :: forall e. Audio -> AudioBuffer -> Eff (audio :: AUDIO | e) Unit
+foreign import _startPlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
+foreign import _pausePlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit

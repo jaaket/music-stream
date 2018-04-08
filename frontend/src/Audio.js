@@ -5,8 +5,12 @@ exports._initAudio = function() {
 
   return {
     audioContext: audioContext,
+    playbackStartTime: null,
     prevVfPtr: 0,
-    sourceNode: null
+    sourceNode: null,
+    queue: [],
+    scheduledCount: 0,
+    playingBufferDuration: null
   };
 }
 
@@ -69,7 +73,51 @@ exports._schedule = function(audio) {
   };
 }
 
-exports._stopPlayback = function(audio) {
+exports._enqueue = function(audio) {
+  return function(audioBuffer) {
+    return function() {
+      audio.queue.push(audioBuffer);
+    };
+  };
+}
+
+exports._startPlayback = function() {
+  function popAndPlay(audio) {
+    if (audio.queue.length > 0) {
+      if (audio.scheduledCount <= 1) {
+        var audioBuffer = audio.queue.shift();
+        var audioContext = audio.audioContext;
+
+        audio.sourceNode = audioContext.createBufferSource();
+        audio.sourceNode.buffer = audioBuffer;
+        audio.sourceNode.connect(audioContext.destination);
+
+        if (audio.scheduledCount === 0) {
+          audio.playbackStartTime = audioContext.currentTime + 0.1;
+        } else {
+          audio.playbackStartTime = audio.playbackStartTime + audio.playingBufferDuration;
+        }
+
+        audio.sourceNode.onended = function() {
+          audio.scheduledCount -= 1;
+        };
+        audio.sourceNode.start(audio.playbackStartTime);
+        audio.scheduledCount += 1;
+        audio.playingBufferDuration = audioBuffer.duration;
+      }
+    }
+
+    setTimeout(function() { popAndPlay(audio); }, 100 );
+  }
+
+  return function(audio) {
+    return function() {
+      popAndPlay(audio);
+    };
+  };
+}();
+
+exports._pausePlayback = function(audio) {
   return function() {
     audio.sourceNode.stop();
   }

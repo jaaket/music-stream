@@ -58,9 +58,9 @@ player audio =
     Toggle next -> do
       playing <- H.gets _.playing
       let nextPlaying = not playing
-      -- if nextPlaying
-      --   then H.liftEff (schedule audio audioData 0.0)
-      --   else H.liftEff (stopPlayback audio)
+      if nextPlaying
+        then H.liftEff (startPlayback audio)
+        else H.liftEff (pausePlayback audio)
       H.modify (\s -> s { playing = nextPlaying })
       pure next
     IsPlaying reply -> do
@@ -75,6 +75,5 @@ main = HA.runHalogenAff do
   let files = map ((_ <> ".ogg") <<< ("/get/out" <> _) <<< show) (1..5)
   arrayBuffers <- traverse ((baseUri <> _) >>> get >>> H.liftAff) files
   audioDatas <- traverse (_.response >>> decode audio >>> H.liftEff) arrayBuffers
-  let spliceOffsets = cons 2.0 (scanl (+) 2.0 (map duration audioDatas))
-  traverse_ ((\(Tuple d t) -> schedule audio d t) >>> H.liftEff) (zip audioDatas spliceOffsets)
+  traverse_ ((\d -> enqueue audio d) >>> H.liftEff) audioDatas
   runUI (player audio) unit body
