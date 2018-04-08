@@ -3,13 +3,11 @@ module Main where
 import Audio
 import Prelude
 
-import Control.Monad.Aff (Aff)
+import Control.Monad.Aff (Aff, Milliseconds(..), delay, forkAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
-import Data.Array (zip, cons, (..))
 import Data.Maybe (Maybe(..))
-import Data.Traversable (scanl, traverse, traverse_)
-import Data.Tuple (Tuple(..))
+import Halogen (liftEff)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -67,13 +65,27 @@ player audio =
       playing <- H.gets _.playing
       pure (reply playing)
 
+nextAudioSegmentId :: Int -> Int
+nextAudioSegmentId prevId = prevId + 1
+
+fillQueue :: forall e. Audio -> Int -> Aff (ajax :: AJAX, audio :: AUDIO | e) Unit
+fillQueue audio prevId = do
+  len <- liftEff (queueLength audio)
+  if len < 5
+    then do
+      let nextId = nextAudioSegmentId prevId
+      res <- get ("http://localhost:8099/get/out" <> show nextId <> ".ogg")
+      audioData <- liftEff (decode audio (res.response))
+      liftEff (enqueue audio audioData)
+      delay (Milliseconds 500.0)
+      fillQueue audio nextId
+    else do
+      delay (Milliseconds 500.0)
+      fillQueue audio prevId
+
 main :: Eff (ajax :: AJAX, audio :: AUDIO, console :: CONSOLE | HA.HalogenEffects ()) Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
-  let baseUri = "http://localhost:8099"
   audio <- H.liftEff initAudio
-  let files = map ((_ <> ".ogg") <<< ("/get/out" <> _) <<< show) (1..5)
-  arrayBuffers <- traverse ((baseUri <> _) >>> get >>> H.liftAff) files
-  audioDatas <- traverse (_.response >>> decode audio >>> H.liftEff) arrayBuffers
-  traverse_ ((\d -> enqueue audio d) >>> H.liftEff) audioDatas
+  _ <- forkAff (fillQueue audio 0)
   runUI (player audio) unit body

@@ -122,3 +122,9 @@ exports._pausePlayback = function(audio) {
     audio.sourceNode.stop();
   }
 }
+
+exports.queueLength = function(audio) {
+  return function() {
+    return audio.queue.length;
+  };
+}

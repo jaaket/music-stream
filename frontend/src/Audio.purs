@@ -32,6 +32,8 @@ startPlayback = _startPlayback
 pausePlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
 pausePlayback = _pausePlayback
 
+foreign import queueLength :: forall e. Audio -> Eff (audio :: AUDIO | e) Int
+
 foreign import _initAudio :: forall e. Eff (audio :: AUDIO | e) Audio
 foreign import _decode :: forall e. Audio -> ArrayBuffer -> Eff (audio :: AUDIO | e) AudioBuffer
 foreign import _schedule :: forall e. Audio -> AudioBuffer -> Number -> Eff (audio :: AUDIO | e) Unit
