@@ -23,6 +23,7 @@ exports._decode = function(audio) {
       var resultBufPtr = Module._malloc(ptrSize);
       var numSamplesPtr = Module._malloc(ptrSize);
       var resultVfPtrPtr = Module._malloc(ptrSize);
+      Module.HEAPU8.fill(0, resultVfPtrPtr, resultVfPtrPtr + ptrSize);
       var res = decodeVorbis(audio.prevVfPtr, buf, orig.length, resultBufPtr, numSamplesPtr, resultVfPtrPtr);
       audio.prevVfPtr = Module.getValue(resultVfPtrPtr, '*');
       var resultBuf = Module.getValue(resultBufPtr, '*');
@@ -58,7 +59,6 @@ exports._schedule = function(audio) {
   return function(audioBuffer) {
     return function(time) {
       return function() {
-        console.log(audioBuffer);
         var audioContext = audio.audioContext;
         var sourceNode = audioContext.createBufferSource();
         sourceNode.buffer = audioBuffer;

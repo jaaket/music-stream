@@ -75,8 +75,8 @@ long mem_tell(mem_state *ds) {
 
 EMSCRIPTEN_KEEPALIVE
 int decodeVorbis(OggVorbis_File *prev_vf, char* input, int n, char** output, long* output_samples, OggVorbis_File **vf) {
-    printf("prev_vf: %p\n", prev_vf);
-    printf("vf: %p\n", vf);
+    // printf("prev_vf: %p\n", prev_vf);
+    // printf("input: %p\n", input);
 
     ov_callbacks callbacks = {
         .read_func = (size_t (*)(void*, size_t, size_t, void*)) mem_read,
@@ -86,40 +86,48 @@ int decodeVorbis(OggVorbis_File *prev_vf, char* input, int n, char** output, lon
     };
 
     *vf = calloc(1, sizeof(OggVorbis_File));
-    printf("*vf: %p\n", *vf);
+    // printf("*vf: %p\n", *vf);
 
-    mem_state state = {
-        .data = input,
-        .bytes_read = 0,
-        .bytes_left = n,
-        .total_bytes = n
-    };
+    // TODO: free?
+    mem_state *state = malloc(sizeof(mem_state));
+    state->data = input;
+    state->bytes_read = 0;
+    state->bytes_left = n;
+    state->total_bytes = n;
 
-    long rv = ov_open_callbacks(&state, *vf, NULL, 0, callbacks);
+    long rv = ov_open_callbacks(state, *vf, NULL, 0, callbacks);
 
     if (rv < 0) {
         printf("Failed to initialize vorbisfile: %ld\n", rv);
         return rv;
     }
 
-    printf("offset: %lld\n", (*vf)->offset);
-    printf("end: %lld\n", (*vf)->end);
+    // printf("offset: %lld\n", (*vf)->offset);
+    // printf("end: %lld\n", (*vf)->end);
 
     ogg_int64_t total_samples = ov_pcm_total(*vf, -1);
     if (total_samples < 0) {
         printf("Could not determine number of samples: %lld\n", total_samples);
         return -1;
     }
-
-    printf("total_samples: %lld\n", total_samples);
+    // printf("total_samples: %lld\n", total_samples);
 
     *output_samples = total_samples;
 
     // Allocate output buffer
     *output = malloc(total_samples * 2 * 2);
+    // printf("*output: %p\n", *output);
 
-    if (prev_vf) {
-        ov_crosslap(prev_vf, *vf);
+    if (prev_vf != NULL) {
+        // printf("prev_vf->datasource: %p\n", prev_vf->datasource);
+        // printf("(*vf)->datasource: %p\n", (*vf)->datasource);
+
+        // printf("ov_crosslap(%p, %p)\n", prev_vf, *vf);
+        rv = ov_crosslap(prev_vf, *vf);
+        if (rv < 0) {
+            printf("Failed to crosslap: %ld\n", rv);
+            return -1;
+        }
     }
 
     long total_read = 0;
@@ -127,7 +135,6 @@ int decodeVorbis(OggVorbis_File *prev_vf, char* input, int n, char** output, lon
     do {
         int bitstream;
         bytes_read = ov_read(*vf, *output + total_read, 4096, 0, 2, 1, &bitstream);
-        // printf("bitstream: %d\n", bitstream);
         if (bytes_read < 0) {
             printf("Failed to decode: %ld\n", bytes_read);
             return bytes_read;
@@ -137,6 +144,8 @@ int decodeVorbis(OggVorbis_File *prev_vf, char* input, int n, char** output, lon
 
         total_read += bytes_read;
     } while (bytes_read > 0);
+
+    // printf("total samples read: %ld\n", total_read / 4);
 
     /*
     long num_streams = ov_streams(&vf);
