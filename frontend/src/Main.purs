@@ -74,10 +74,7 @@ main = HA.runHalogenAff do
   audio <- H.liftEff initAudio
   let files = map ((_ <> ".ogg") <<< ("/get/out" <> _) <<< show) (1..5)
   arrayBuffers <- traverse ((baseUri <> _) >>> get >>> H.liftAff) files
-  H.liftEff (log "ASD")
   audioDatas <- traverse (_.response >>> decode audio >>> H.liftEff) arrayBuffers
-  H.liftEff (log "QWE")
   let spliceOffsets = cons 2.0 (scanl (+) 2.0 (map duration audioDatas))
-  H.liftEff (log (show spliceOffsets))
   traverse_ ((\(Tuple d t) -> schedule audio d t) >>> H.liftEff) (zip audioDatas spliceOffsets)
   runUI (player audio) unit body

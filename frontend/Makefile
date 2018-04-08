@@ -1,10 +1,10 @@
 .PHONY: all
 
-all: hello.js
+all: vorbis.js
 
-hello.js: hello.c
-	emcc -I./vendor/build/include hello.c -L./vendor/build/lib -llibvorbisfile -llibvorbis -llibogg \
+vorbis.js: vorbis.c
+	emcc -I./vendor/build/include $^ -L./vendor/build/lib -llibvorbisfile -llibvorbis -llibogg \
 		-s EXTRA_EXPORTED_RUNTIME_METHODS='["cwrap", "getValue"]' \
 		-Werror \
 		-s TOTAL_MEMORY=67108864 \
-		-s WASM=1 -o hello.js
+		-s WASM=1 -o $@

@@ -4,44 +4,16 @@
   <title>Streaming</title>
 </head>
 <body>
-  <!-- <script src="https://sdk.scdn.co/spotify-player.js"></script> -->
-  <!-- <script src="stream-test.js"></script> -->
   <script>
-    /*
-    window.onSpotifyWebPlaybackSDKReady = () => {
-    const token = 'BQC_wE3dO_-B8tPDVGuYG8UmGgqGRldqWQ-MJ5Fq_2A4UktiJpyKpWELEz4Z5Zfp3UUoiOLcblZDG5srP938RW-OxmzVIPIgqsL8mlCb2KJYHO26plN_7RA9HFCuWabah3-GJhLlJz-d5jrkrF-oW0oXJf_a301JjhpqLIQ';
-    const player = new Spotify.Player({
-      name: 'Web Playback SDK Quick Start Player',
-      getOAuthToken: cb => { cb(token); }
-    });
-
-    // Error handling
-    player.addListener('initialization_error', ({ message }) => { console.error(message); });
-    player.addListener('authentication_error', ({ message }) => { console.error(message); });
-    player.addListener('account_error', ({ message }) => { console.error(message); });
-    player.addListener('playback_error', ({ message }) => { console.error(message); });
-
-    // Playback status updates
-    player.addListener('player_state_changed', state => { console.log(state); });
-
-    // Ready
-    player.addListener('ready', ({ device_id }) => {
-      console.log('Ready with Device ID', device_id);
-    });
-
-    // Connect to the player!
-    player.connect();
-  };*/
   </script>
   <script type="text/javascript">
     var Module = {
       onRuntimeInitialized: function() {
-        hello = Module.cwrap('hello', 'int', []);
         decodeVorbis = Module.cwrap('decodeVorbis', 'int', ['number', 'number', 'number', 'number', 'number', 'number']);
       }
     };
   </script>
-  <script src="hello.js"></script>
+  <script src="vorbis.js"></script>
   <script src="output/app.js"></script>
 </body>
 </html>
