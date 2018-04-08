@@ -32,7 +32,7 @@ exports._decode = function(audio) {
       audio.prevVfPtr = Module.getValue(resultVfPtrPtr, '*');
       var resultBuf = Module.getValue(resultBufPtr, '*');
       var numSamples = Module.getValue(numSamplesPtr, 'i64');
-      // Module._free(buf); // No longer needed
+      Module._free(buf); // No longer needed
 
       // samples are (big-endian) 16-bit signed integers, two channels => multiply by 4
       var resultArray = new Int16Array(Module.HEAPU8.slice(resultBuf, resultBuf + numSamples * 4).buffer);
@@ -45,6 +45,11 @@ exports._decode = function(audio) {
           buffer[i] = resultArray[2*i + c] / 32767;
         }
       }
+
+      Module._free(resultBuf);
+      Module._free(resultBufPtr);
+      Module._free(numSamplesPtr);
+      Module._free(resultVfPtrPtr);
 
       return resultAudioBuf;
     };

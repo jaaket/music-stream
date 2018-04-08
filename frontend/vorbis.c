@@ -100,7 +100,7 @@ int decodeVorbis(OggVorbis_File *prev_vf, char* input, int n, char** output, lon
 
     *output_samples = total_samples;
 
-    // Allocate output buffer
+    // Allocate output buffer. It is free'd from JS.
     *output = malloc(total_samples * 2 * 2);
     // printf("*output: %p\n", *output);
 
