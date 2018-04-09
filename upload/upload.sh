@@ -15,6 +15,7 @@ if [[ ! "$WORK_DIR" || ! -d "$WORK_DIR" ]]; then
 fi
 
 function cleanup {
+  echo "Cleaning up"
   rm -rf "$WORK_DIR"
 }
 
@@ -27,9 +28,19 @@ if [[ ! $? ]]; then
 fi
 
 # Assume a single song for now
-SONG_INFO=$(soxi "$1")
-TITLE=$(echo $SONG_INFO | sed -e 's/Title=\(.*\)/\1/;t;d')
+METADATA_FILE="$WORK_DIR"/metadata.txt
+ffmpeg -i "$1" -f ffmetadata "$METADATA_FILE"
+if [[ ! $? ]]; then
+  echo "Failed to get song metadata"
+  exit 1
+fi
+
+TITLE=$(grep -ie '^title' < $METADATA_FILE | cut -d'=' -f2)
+ALBUM=$(grep -ie '^album' < $METADATA_FILE | cut -d'=' -f2)
+ARTIST=$(grep -ie '^artist' < $METADATA_FILE | cut -d'=' -f2)
 echo "$TITLE"
+echo "$ALBUM"
+echo "$ARTIST"
 
 sox "$1" -C 7 "$WORK_DIR"/"$SONG_ID"-%1n.ogg trim 0 15 : newfile : restart
 cd "$WORK_DIR"
