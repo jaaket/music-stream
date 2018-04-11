@@ -2,6 +2,7 @@ module Main where
 
 import Audio
 import Prelude
+import SongRepository
 
 import Control.Monad.Aff (Aff, Milliseconds(..), delay, forkAff)
 import Control.Monad.Eff (Eff)
@@ -13,45 +14,68 @@ import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Query.InputF (InputF(..))
 import Halogen.VDom.Driver (runUI)
 import Network.HTTP.Affjax (get, AJAX)
 
 
 type State = {
-  playing :: Boolean
+  playing :: Boolean,
+  songs :: Array Song
 }
 
 data Query a
   = Toggle a
   | IsPlaying (Boolean -> a)
+  | FetchSongs a
 
-player :: forall e. Audio -> H.Component HH.HTML Query Unit Void (Aff (audio :: AUDIO | e))
+player :: forall e. Audio -> H.Component HH.HTML Query Unit Void (Aff (ajax :: AJAX, audio :: AUDIO | e))
 player audio =
-  H.component
+  H.lifecycleComponent
     { initialState: const initialState
     , render
     , eval
     , receiver: const Nothing
+    , initializer: Just (H.action FetchSongs)
+    , finalizer: Nothing
     }
   where
 
   initialState :: State
   initialState = {
-    playing: false
+    playing: false,
+    songs: []
   }
+
+  renderSong :: Song -> H.ComponentHTML Query
+  renderSong (Song {title, album, artist}) =
+    HH.div [ HP.class_ (H.ClassName "song-list__song") ]
+      [ HH.div_ [ HH.text title ]
+      , HH.div_ [ HH.text album ]
+      , HH.div_ [ HH.text artist ]
+      ]
+
+  renderSongs :: Array Song -> H.ComponentHTML Query
+  renderSongs songs =
+    HH.div [ HP.class_ (H.ClassName "song-list") ]
+      (map renderSong songs)
 
   render :: State -> H.ComponentHTML Query
   render state =
     let
       label = if state.playing then "⏸" else "▶"
     in
-      HH.button
-        [ HP.title label
-        , HE.onClick (HE.input_ Toggle)
+      HH.div [HP.class_ (H.ClassName "main")]
+        [
+          renderSongs (state.songs),
+          HH.button
+            [ HP.title label
+            , HE.onClick (HE.input_ Toggle)
+            ]
+            [ HH.text label ]
         ]
-        [ HH.text label ]
 
-  eval :: Query ~> H.ComponentDSL State Query Void (Aff (audio :: AUDIO | e))
+  eval :: Query ~> H.ComponentDSL State Query Void (Aff (ajax :: AJAX, audio :: AUDIO | e))
   eval = case _ of
     Toggle next -> do
       playing <- H.gets _.playing
@@ -64,6 +88,10 @@ player audio =
     IsPlaying reply -> do
       playing <- H.gets _.playing
       pure (reply playing)
+    FetchSongs next -> do
+      songs <- H.liftAff getSongs
+      H.modify (\s -> s { songs = songs })
+      pure next
 
 nextAudioSegmentId :: Int -> Int
 nextAudioSegmentId prevId = prevId + 1

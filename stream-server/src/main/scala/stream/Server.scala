@@ -3,13 +3,12 @@ package stream
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
-import akka.http.scaladsl.model.{HttpEntity, MediaTypes}
+import akka.http.scaladsl.model.{ContentType, HttpEntity, MediaTypes}
 import akka.http.scaladsl.server.Directives._
 import akka.stream.{ActorMaterializer, Materializer}
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
-
 
 import scala.concurrent.ExecutionContext
 
@@ -29,7 +28,9 @@ object Server extends App with PredefinedToEntityMarshallers {
     cors() {
       path("get" / Remaining) { location =>
         get {
-          complete(HttpEntity(MediaTypes.`audio/ogg`, getObject(Storage.Location(location))))
+          val (obj, ct) = getObject(Storage.Location(location))
+          val Right(contentType) = ContentType.parse(ct)
+          complete(HttpEntity(contentType, obj))
         }
       }
     }

@@ -9,7 +9,7 @@ import org.joda.time.DateTime
 object Storage {
   case class Location(value: String) extends AnyVal
 
-  type GetObject = (Location) => ByteString
+  type GetObject = (Location) => (ByteString, String)
 
   def get(s3Client: AmazonS3): GetObject = location => {
     println(s"get $location")
@@ -42,6 +42,6 @@ object Storage {
     val endTime = DateTime.now()
     println(s"get took ${endTime.getMillis - startTime.getMillis} ms")
 
-    res
+    (res, obj.getObjectMetadata.getContentType)
   }
 }

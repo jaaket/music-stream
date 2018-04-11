@@ -1,0 +1,33 @@
+body {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+.main {
+  max-width: 1200px;
+  min-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.song-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.song-list__song {
+  list-style: none;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+
+.song-list__song:hover {
+  background-color: rgba(116, 150, 183, 0.2)
+}
