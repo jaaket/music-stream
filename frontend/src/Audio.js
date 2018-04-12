@@ -1,17 +1,60 @@
 "use strict";
 
 exports._initAudio = function() {
-  var audioContext = new AudioContext();
+  var audio = {
+    audioContext: new AudioContext(),
 
-  return {
-    audioContext: audioContext,
-    playbackStartTime: null,
     prevVfPtr: 0,
-    sourceNode: null,
+
     queue: [],
+    playbackStartTime: null,
+    nextToSchedule: 0,
     scheduledCount: 0,
-    playingBufferDuration: null
+    playingBufferDuration: null,
+    schedulingEnabled: false,
+    pausedOffset: null
   };
+
+  function scheduler(audio) {
+    if (audio.schedulingEnabled && audio.queue.length > audio.nextToSchedule && audio.scheduledCount <= 1) {
+      var segment = audio.queue[audio.nextToSchedule];
+      audio.nextToSchedule += 1;
+
+      var audioContext = audio.audioContext;
+
+      segment.node = audioContext.createBufferSource();
+      segment.node.buffer = segment.buffer;
+      segment.node.connect(audioContext.destination);
+
+      if (audio.scheduledCount === 0) {
+        // TODO: Does playbackStartTime need to be stored separately?
+        audio.playbackStartTime = audioContext.currentTime + 0.1;
+      } else {
+        audio.playbackStartTime = audio.playbackStartTime + audio.playingBufferDuration;
+      }
+
+      segment.node.onended = function() {
+        audio.scheduledCount -= 1;
+        if (!segment.dontFinish) {
+          segment.playbackFinished = true;
+        }
+      };
+
+      segment.dontFinish = false;
+      segment.playbackStartTime = audio.playbackStartTime;
+      audio.scheduledCount += 1;
+      // Take into account piece of segment already played
+      audio.playingBufferDuration = segment.buffer.duration - segment.progress;
+
+      segment.node.start(audio.playbackStartTime, segment.progress);
+    }
+
+    setTimeout(function() { scheduler(audio); }, 100 );
+  }
+
+  scheduler(audio);
+
+  return audio;
 }
 
 exports._decode = function(audio) {
@@ -56,80 +99,56 @@ exports._decode = function(audio) {
   };
 }
 
-exports.duration = function(audioBuffer) {
-  return audioBuffer.duration;
-}
-
-exports.bufferLength = function(audioBuffer) {
-  return audioBuffer.length;
-}
-
-exports._schedule = function(audio) {
-  return function(audioBuffer) {
-    return function(time) {
-      return function() {
-        var audioContext = audio.audioContext;
-        var sourceNode = audioContext.createBufferSource();
-        sourceNode.buffer = audioBuffer;
-        sourceNode.connect(audioContext.destination);
-        sourceNode.start(time);
-      };
-    };
-  };
-}
-
 exports._enqueue = function(audio) {
   return function(audioBuffer) {
     return function() {
-      audio.queue.push(audioBuffer);
+      audio.queue.push({
+        buffer: audioBuffer,
+        node: null, // Initialized when scheduled
+        playbackStartTime: null, // Global time
+        progress: 0, // How much segment has been played
+        playbackFinished: false,
+        dontFinish: false // Don't mark as finished when playback ends (useful for pausing)
+      });
     };
   };
 }
 
 exports._startPlayback = function() {
-  function popAndPlay(audio) {
-    if (audio.queue.length > 0) {
-      if (audio.scheduledCount <= 1) {
-        var audioBuffer = audio.queue.shift();
-        var audioContext = audio.audioContext;
-
-        audio.sourceNode = audioContext.createBufferSource();
-        audio.sourceNode.buffer = audioBuffer;
-        audio.sourceNode.connect(audioContext.destination);
-
-        if (audio.scheduledCount === 0) {
-          audio.playbackStartTime = audioContext.currentTime + 0.1;
-        } else {
-          audio.playbackStartTime = audio.playbackStartTime + audio.playingBufferDuration;
-        }
-
-        audio.sourceNode.onended = function() {
-          audio.scheduledCount -= 1;
-        };
-        audio.sourceNode.start(audio.playbackStartTime);
-        audio.scheduledCount += 1;
-        audio.playingBufferDuration = audioBuffer.duration;
-      }
-    }
-
-    setTimeout(function() { popAndPlay(audio); }, 100 );
-  }
-
   return function(audio) {
     return function() {
-      popAndPlay(audio);
+      audio.schedulingEnabled = true;
     };
   };
 }();
 
 exports._pausePlayback = function(audio) {
   return function() {
-    audio.sourceNode.stop();
+    audio.schedulingEnabled = false;
+    var foundPlaying = false;
+
+    // Stop all scheduled segments
+    for (var i = 0; i < audio.queue.length; i++) {
+      var segment = audio.queue[i];
+
+      if (segment.node && !segment.playbackFinished) {
+        if (!foundPlaying) {
+          // This is the currently playing segment
+          foundPlaying = true;
+          segment.progress += audio.audioContext.currentTime - segment.playbackStartTime;
+          audio.nextToSchedule = i;
+        }
+
+        segment.dontFinish = true;
+        segment.node.stop();
+        // TODO: Free node data?
+      }
+    }
   }
 }
 
 exports.queueLength = function(audio) {
   return function() {
-    return audio.queue.length;
+    return audio.queue.length - audio.nextToSchedule;
   };
 }

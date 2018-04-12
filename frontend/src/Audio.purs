@@ -17,12 +17,6 @@ initAudio = _initAudio
 decode :: forall e. Audio -> ArrayBuffer -> Eff (audio :: AUDIO | e) AudioBuffer
 decode = _decode
 
-foreign import duration :: forall e. AudioBuffer -> Number
-foreign import bufferLength :: forall e. AudioBuffer -> Number
-
-schedule :: forall e. Audio -> AudioBuffer -> Number -> Eff (audio :: AUDIO | e) Unit
-schedule = _schedule
-
 enqueue :: forall e. Audio -> AudioBuffer -> Eff (audio :: AUDIO | e) Unit
 enqueue = _enqueue
 
@@ -36,7 +30,6 @@ foreign import queueLength :: forall e. Audio -> Eff (audio :: AUDIO | e) Int
 
 foreign import _initAudio :: forall e. Eff (audio :: AUDIO | e) Audio
 foreign import _decode :: forall e. Audio -> ArrayBuffer -> Eff (audio :: AUDIO | e) AudioBuffer
-foreign import _schedule :: forall e. Audio -> AudioBuffer -> Number -> Eff (audio :: AUDIO | e) Unit
 foreign import _enqueue :: forall e. Audio -> AudioBuffer -> Eff (audio :: AUDIO | e) Unit
 foreign import _startPlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
 foreign import _pausePlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
