@@ -7,6 +7,7 @@ import SongRepository
 import Control.Monad.Aff (Aff, Milliseconds(..), delay, forkAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
+import Data.Array (filter)
 import Data.Maybe (Maybe(..))
 import Halogen (liftEff)
 import Halogen as H
@@ -14,20 +15,22 @@ import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Halogen.Query.InputF (InputF(..))
 import Halogen.VDom.Driver (runUI)
 import Network.HTTP.Affjax (get, AJAX)
 
 
 type State = {
   playing :: Boolean,
-  songs :: Array Song
+  songs :: Array Song,
+  playlist :: Array Song
 }
 
 data Query a
   = Toggle a
   | IsPlaying (Boolean -> a)
   | FetchSongs a
+  | AddToPlaylist Song a
+  | RemoveFromPlaylist Song a
 
 player :: forall e. Audio -> H.Component HH.HTML Query Unit Void (Aff (ajax :: AJAX, audio :: AUDIO | e))
 player audio =
@@ -44,21 +47,30 @@ player audio =
   initialState :: State
   initialState = {
     playing: false,
-    songs: []
+    songs: [],
+    playlist: []
   }
 
-  renderSong :: Song -> H.ComponentHTML Query
-  renderSong (Song {title, album, artist}) =
-    HH.div [ HP.class_ (H.ClassName "song-list__song") ]
+  renderSong :: forall a. (Song -> Unit -> Query Unit) -> Song -> H.ComponentHTML Query
+  renderSong clickHandler song@(Song {title, album, artist}) =
+    HH.div
+      [ HP.class_ (H.ClassName "song-list__song")
+      , HE.onClick (HE.input_ (clickHandler song))
+      ]
       [ HH.div_ [ HH.text title ]
       , HH.div_ [ HH.text album ]
       , HH.div_ [ HH.text artist ]
       ]
 
-  renderSongs :: Array Song -> H.ComponentHTML Query
-  renderSongs songs =
+  renderSongList :: Array Song -> H.ComponentHTML Query
+  renderSongList songs =
     HH.div [ HP.class_ (H.ClassName "song-list") ]
-      (map renderSong songs)
+      (map (renderSong AddToPlaylist) songs)
+
+  renderPlaylist :: Array Song -> H.ComponentHTML Query
+  renderPlaylist songs =
+    HH.div [ HP.class_ (H.ClassName "song-list") ]
+      (map (renderSong RemoveFromPlaylist) songs)
 
   render :: State -> H.ComponentHTML Query
   render state =
@@ -67,12 +79,13 @@ player audio =
     in
       HH.div [HP.class_ (H.ClassName "main")]
         [
-          renderSongs (state.songs),
+          renderSongList (state.songs),
           HH.button
             [ HP.title label
             , HE.onClick (HE.input_ Toggle)
             ]
-            [ HH.text label ]
+            [ HH.text label ],
+          renderPlaylist (state.playlist)
         ]
 
   eval :: Query ~> H.ComponentDSL State Query Void (Aff (ajax :: AJAX, audio :: AUDIO | e))
@@ -91,6 +104,12 @@ player audio =
     FetchSongs next -> do
       songs <- H.liftAff getSongs
       H.modify (\s -> s { songs = songs })
+      pure next
+    AddToPlaylist song next -> do
+      H.modify (\s -> s { playlist = s.playlist <> [song]})
+      pure next
+    RemoveFromPlaylist song next -> do
+      H.modify (\s -> s { playlist = filter (_ /= song) s.playlist})
       pure next
 
 nextAudioSegmentId :: Int -> Int

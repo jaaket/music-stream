@@ -5,7 +5,6 @@ import Prelude
 
 import Control.Monad.Aff (Aff, throwError)
 import Control.Monad.Eff.Exception (error)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..))
 import Network.HTTP.Affjax (get, AJAX)
 
@@ -15,6 +14,9 @@ newtype Song = Song {
   album :: String,
   artist :: String
 }
+
+instance eqSong :: Eq Song where
+  eq (Song {uuid: uuid1}) (Song {uuid: uuid2}) = uuid1 == uuid2
 
 instance decodeJsonSong :: DecodeJson Song where
   decodeJson json = do
