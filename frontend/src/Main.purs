@@ -71,9 +71,9 @@ player audio =
       [ HP.class_ (H.ClassName "song-list__song")
       , HE.onClick (HE.input_ (clickHandler song))
       ]
-      [ HH.div_ [ HH.text title ]
-      , HH.div_ [ HH.text album ]
-      , HH.div_ [ HH.text artist ]
+      [ HH.div [ HP.class_ (H.ClassName "song-list__song-title") ] [ HH.text title ]
+      , HH.div [ HP.class_ (H.ClassName "song-list__song-album") ] [ HH.text album ]
+      , HH.div [ HP.class_ (H.ClassName "song-list__song-artist") ] [ HH.text artist ]
       ]
 
   renderSongList :: Array Song -> H.ComponentHTML Query

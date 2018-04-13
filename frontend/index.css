@@ -31,3 +31,24 @@ body {
 .song-list__song:hover {
   background-color: rgba(116, 150, 183, 0.2)
 }
+
+.song-list__song-title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.song-list__song-album {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.song-list__song-artist {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
