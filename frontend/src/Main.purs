@@ -8,6 +8,8 @@ import Control.Monad.Aff (Aff, Milliseconds(..), delay, forkAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 import Data.Array (filter, length)
+import Data.Array as Array
+import Data.Const (Const(..))
 import Data.Maybe (Maybe(..))
 import Halogen (liftEff)
 import Halogen as H
@@ -26,6 +28,11 @@ data PlaybackState
 isPlaying :: PlaybackState -> Boolean
 isPlaying (Playing _) = true
 isPlaying _ = false
+
+currentSongIdx :: PlaybackState -> Maybe Int
+currentSongIdx (Paused (Just song)) = Just song
+currentSongIdx (Playing song) = Just song
+currentSongIdx _ = Nothing
 
 type State = {
   songs :: Array Song,
@@ -113,6 +120,7 @@ player audio =
           H.modify (\s -> s { playback = Paused (Just playlistIndex) })
       pure next
     FetchSongs next -> do
+      _ <- H.fork $ fillQueue 0
       songs <- H.liftAff getSongs
       H.modify (\s -> s { songs = songs })
       pure next
@@ -123,27 +131,34 @@ player audio =
       H.modify (\s -> s { playlist = filter (_ /= song) s.playlist})
       pure next
 
+  fillQueue :: forall f. Int -> H.ComponentDSL State Query Void (Aff (ajax :: AJAX, audio :: AUDIO | f)) Unit
+  fillQueue prevId = do
+    len <- H.liftEff (queueLength audio)
+    if len < 5
+      then do
+        playback <- H.gets _.playback
+        playlist <- H.gets _.playlist
+        let songMaybe = currentSongIdx playback >>= Array.index playlist
+        case songMaybe of
+          Just (Song {uuid}) -> do
+            let nextId = nextAudioSegmentId prevId
+            res <- H.liftAff (get ("http://localhost:8099/get/" <> uuid <> "-" <> show nextId <> ".ogg"))
+            audioData <- H.liftEff (decode audio (res.response))
+            H.liftEff (enqueue audio audioData)
+            H.liftAff (delay (Milliseconds 500.0))
+            fillQueue nextId
+          Nothing -> do
+            H.liftAff (delay (Milliseconds 500.0))
+            fillQueue prevId
+      else do
+        H.liftAff (delay (Milliseconds 500.0))
+        fillQueue prevId
+
 nextAudioSegmentId :: Int -> Int
 nextAudioSegmentId prevId = prevId + 1
-
-fillQueue :: forall e. Audio -> Int -> Aff (ajax :: AJAX, audio :: AUDIO | e) Unit
-fillQueue audio prevId = do
-  len <- liftEff (queueLength audio)
-  if len < 5
-    then do
-      let nextId = nextAudioSegmentId prevId
-      res <- get ("http://localhost:8099/get/out" <> show nextId <> ".ogg")
-      audioData <- liftEff (decode audio (res.response))
-      liftEff (enqueue audio audioData)
-      delay (Milliseconds 500.0)
-      fillQueue audio nextId
-    else do
-      delay (Milliseconds 500.0)
-      fillQueue audio prevId
 
 main :: Eff (ajax :: AJAX, audio :: AUDIO, console :: CONSOLE | HA.HalogenEffects ()) Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   audio <- H.liftEff initAudio
-  _ <- forkAff (fillQueue audio 0)
   runUI (player audio) unit body
