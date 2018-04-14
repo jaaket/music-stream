@@ -1,6 +1,7 @@
 module SongRepository where
 
 import Data.Argonaut.Decode
+import Data.Generic
 import Prelude
 
 import Control.Monad.Aff (Aff, throwError)
@@ -18,6 +19,11 @@ newtype Song = Song {
 
 instance eqSong :: Eq Song where
   eq (Song {uuid: uuid1}) (Song {uuid: uuid2}) = uuid1 == uuid2
+
+derive instance genericSong :: Generic Song
+
+instance showSong :: Show Song where
+  show = gShow
 
 instance decodeJsonSong :: DecodeJson Song where
   decodeJson json = do
