@@ -9,6 +9,8 @@ import Control.Monad.Eff.Exception (error)
 import Data.Either (Either(..))
 import Network.HTTP.Affjax (get, AJAX)
 
+import S3
+
 newtype Song = Song {
   uuid :: String,
   title :: String,
@@ -36,9 +38,9 @@ instance decodeJsonSong :: DecodeJson Song where
     numSegments <- obj .? "numSegments"
     pure $ Song { uuid, title, album, artist, numSegments }
 
-getSongs :: forall e. Aff (ajax :: AJAX | e) (Array Song)
+getSongs :: forall e. Aff (aws :: AWS | e) (Array Song)
 getSongs = do
-  dbResp <- get "http://localhost:8099/get/database.json"
-  case decodeJson (dbResp.response) of
+  dbResp <- getJsonObject "database.json"
+  case decodeJson dbResp of
       Right db -> pure db
       Left errs ->  throwError (error ("Failed to parse json: " <> show errs))

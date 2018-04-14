@@ -2,24 +2,22 @@ module Main where
 
 import Audio
 import Prelude
+import S3
 import SongRepository
 
-import Control.Monad.Aff (Aff, Milliseconds(..), delay, forkAff)
+import Control.Monad.Aff (Aff, Milliseconds(..), delay)
+import Control.Monad.Aff.Console (log)
 import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (CONSOLE, log, logShow)
-import Data.Array (filter, index, length)
-import Data.Array as Array
-import Data.Const (Const(..))
+import Control.Monad.Eff.Console (CONSOLE)
+import Data.Array (filter, index)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Halogen (liftEff)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
-import Network.HTTP.Affjax (get, AJAX)
 
 
 data PlaybackState
@@ -48,7 +46,7 @@ data Query a
   | AddToPlaylist Song a
   | RemoveFromPlaylist Song a
 
-player :: forall e. Audio -> H.Component HH.HTML Query Unit Void (Aff (console :: CONSOLE, ajax :: AJAX, audio :: AUDIO | e))
+player :: forall e. Audio -> H.Component HH.HTML Query Unit Void (Aff (aws :: AWS, console :: CONSOLE, audio :: AUDIO | e))
 player audio =
   H.lifecycleComponent
     { initialState: const initialState
@@ -105,7 +103,7 @@ player audio =
           renderPlaylist (state.playlist)
         ]
 
-  eval :: Query ~> H.ComponentDSL State Query Void (Aff (console :: CONSOLE, ajax :: AJAX, audio :: AUDIO | e))
+  eval :: Query ~> H.ComponentDSL State Query Void (Aff (aws :: AWS, console :: CONSOLE, audio :: AUDIO | e))
   eval = case _ of
     Toggle next -> do
       playback <- H.gets _.playback
@@ -129,7 +127,7 @@ player audio =
       H.modify (\s -> s { playlist = filter (_ /= song) s.playlist})
       pure next
 
-  fillQueue :: forall f. H.ComponentDSL State Query Void (Aff (console :: CONSOLE, ajax :: AJAX, audio :: AUDIO | f)) Unit
+  fillQueue :: forall f. H.ComponentDSL State Query Void (Aff (aws :: AWS, console :: CONSOLE, audio :: AUDIO | f)) Unit
   fillQueue = do
     len <- H.liftEff (queueLength audio)
     nextId <- if len < 5
@@ -142,8 +140,8 @@ player audio =
                           pure (Tuple next nextId)
         case nextMaybe of
           Just (Tuple next nextId) -> do
-            res <- H.liftAff (get ("http://localhost:8099/get/" <> nextId <> ".ogg"))
-            audioData <- H.liftEff (decode audio (res.response))
+            buf <- H.liftAff (getArrayBufferObject (nextId <> ".ogg"))
+            audioData <- H.liftEff (decode audio buf)
             H.liftEff (enqueue audio audioData)
             H.modify (\s -> s { lastScheduled = next })
             pure unit
@@ -167,7 +165,7 @@ segmentId playlist { songIdx, songSegmentIdx } =
     (\(Song { uuid }) -> uuid <> "-" <> show songSegmentIdx)
     (index playlist songIdx)
 
-main :: Eff (ajax :: AJAX, audio :: AUDIO, console :: CONSOLE | HA.HalogenEffects ()) Unit
+main :: Eff (aws :: AWS, audio :: AUDIO, console :: CONSOLE | HA.HalogenEffects ()) Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   audio <- H.liftEff initAudio
