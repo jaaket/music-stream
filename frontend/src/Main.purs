@@ -7,10 +7,11 @@ import SongRepository
 import Control.Monad.Aff (Aff, Milliseconds(..), delay, forkAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
-import Data.Array (filter, length)
+import Data.Array (filter, index, length)
 import Data.Array as Array
 import Data.Const (Const(..))
 import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 import Halogen (liftEff)
 import Halogen as H
 import Halogen.Aff as HA
@@ -34,10 +35,16 @@ currentSongIdx (Paused (Just song)) = Just song
 currentSongIdx (Playing song) = Just song
 currentSongIdx _ = Nothing
 
+type SegmentIdx = {
+  songIdx :: Int,
+  songSegmentIdx :: Int
+}
+
 type State = {
   songs :: Array Song,
   playlist :: Array Song,
-  playback :: PlaybackState
+  playback :: PlaybackState,
+  lastScheduled :: Maybe SegmentIdx
 }
 
 data Query a
@@ -62,7 +69,8 @@ player audio =
   initialState = {
     songs: [],
     playlist: [],
-    playback: Paused Nothing
+    playback: Paused Nothing,
+    lastScheduled: Nothing
   }
 
   renderSong :: forall a. (Song -> Unit -> Query Unit) -> Song -> H.ComponentHTML Query
@@ -120,42 +128,55 @@ player audio =
           H.modify (\s -> s { playback = Paused (Just playlistIndex) })
       pure next
     FetchSongs next -> do
-      _ <- H.fork $ fillQueue 0
+      _ <- H.fork fillQueue
       songs <- H.liftAff getSongs
       H.modify (\s -> s { songs = songs })
       pure next
     AddToPlaylist song next -> do
-      H.modify (\s -> s { playlist = s.playlist <> [song]})
+      playlist <- H.gets _.playlist
+      playback <- H.gets _.playback
+      case playback of
+        Paused Nothing -> H.modify (\s -> s { playback = Paused (Just 0) })
+        _ -> pure unit
+      H.modify (\s -> s { playlist = [song] })
       pure next
     RemoveFromPlaylist song next -> do
       H.modify (\s -> s { playlist = filter (_ /= song) s.playlist})
       pure next
 
-  fillQueue :: forall f. Int -> H.ComponentDSL State Query Void (Aff (ajax :: AJAX, audio :: AUDIO | f)) Unit
-  fillQueue prevId = do
+  fillQueue :: forall f. H.ComponentDSL State Query Void (Aff (ajax :: AJAX, audio :: AUDIO | f)) Unit
+  fillQueue = do
     len <- H.liftEff (queueLength audio)
-    if len < 5
+    nextId <- if len < 5
       then do
-        playback <- H.gets _.playback
         playlist <- H.gets _.playlist
-        let songMaybe = currentSongIdx playback >>= Array.index playlist
-        case songMaybe of
-          Just (Song {uuid}) -> do
-            let nextId = nextAudioSegmentId prevId
-            res <- H.liftAff (get ("http://localhost:8099/get/" <> uuid <> "-" <> show nextId <> ".ogg"))
+        lastScheduled <- H.gets _.lastScheduled
+        let segmentToScheduleMaybe = lastScheduled >>= nextSegment playlist >>= segmentId playlist
+        case segmentToScheduleMaybe of
+          Just segmentId -> do
+            res <- H.liftAff (get ("http://localhost:8099/get/" <> segmentId <> ".ogg"))
             audioData <- H.liftEff (decode audio (res.response))
             H.liftEff (enqueue audio audioData)
-            H.liftAff (delay (Milliseconds 500.0))
-            fillQueue nextId
-          Nothing -> do
-            H.liftAff (delay (Milliseconds 500.0))
-            fillQueue prevId
-      else do
-        H.liftAff (delay (Milliseconds 500.0))
-        fillQueue prevId
+            pure unit
+          Nothing -> pure unit
+      else pure unit
+    H.liftAff (delay (Milliseconds 500.0))
+    fillQueue
 
-nextAudioSegmentId :: Int -> Int
-nextAudioSegmentId prevId = prevId + 1
+nextSegment :: Array Song -> SegmentIdx -> Maybe SegmentIdx
+nextSegment playlist { songIdx, songSegmentIdx } =
+  map
+    (\(Song song) ->
+      if songSegmentIdx >= song.numSegments
+        then { songIdx: songIdx + 1, songSegmentIdx: 1 }
+        else { songIdx: songIdx, songSegmentIdx: songSegmentIdx + 1 })
+    (index playlist songIdx)
+
+segmentId :: Array Song -> SegmentIdx -> Maybe String
+segmentId playlist { songIdx, songSegmentIdx } =
+  map
+    (\(Song { uuid }) -> uuid <> "-" <> show songSegmentIdx)
+    (index playlist songIdx)
 
 main :: Eff (ajax :: AJAX, audio :: AUDIO, console :: CONSOLE | HA.HalogenEffects ()) Unit
 main = HA.runHalogenAff do

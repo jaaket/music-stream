@@ -28,6 +28,7 @@ data Metadata = Metadata {
 
 data Song = Song {
   uuid :: T.Text,
+  numSegments :: Int,
   metadata :: Metadata
 } deriving (Generic)
 
@@ -51,10 +52,12 @@ upload file = do
   workDir <- using (mktempdir "/tmp" "music-upload")
   uuid <- UUID.toText <$> liftIO UUID.nextRandom
   metadata <- liftIO $ readMetadata workDir file
-  let song = Song uuid metadata
   let targetFiles = format fp (workDir <> fromText (uuid <> "-%1n.ogg"))
   procs "sox" [format fp file, targetFiles, "trim", "0", "15", ":", "newfile", ":", "restart"] empty
   cd workDir
+  numSegments <- fold (fmap (unsafeTextToLine . T.pack . encodeString) (find (suffix ".ogg") "")) countLines
+  let song = Song uuid numSegments metadata
+
   procs "aws" ["--endpoint-url", "https://ams3.digitaloceanspaces.com", "s3", "cp", "s3://music-stream/database.json", "."] empty
   Just db :: Maybe [Song] <- decode <$> liftIO (LB.readFile "database.json")
   let newDb = db <> [song]

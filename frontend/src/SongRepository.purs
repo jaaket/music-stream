@@ -12,7 +12,8 @@ newtype Song = Song {
   uuid :: String,
   title :: String,
   album :: String,
-  artist :: String
+  artist :: String,
+  numSegments :: Int
 }
 
 instance eqSong :: Eq Song where
@@ -26,7 +27,8 @@ instance decodeJsonSong :: DecodeJson Song where
     title <- metadata .? "title"
     album <- metadata .? "album"
     artist <- metadata .? "artist"
-    pure $ Song { uuid, title, album, artist }
+    numSegments <- obj .? "numSegments"
+    pure $ Song { uuid, title, album, artist, numSegments }
 
 getSongs :: forall e. Aff (ajax :: AJAX | e) (Array Song)
 getSongs = do
