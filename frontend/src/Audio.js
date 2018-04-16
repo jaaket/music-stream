@@ -152,3 +152,22 @@ exports.queueLength = function(audio) {
     return audio.queue.length - audio.nextToSchedule;
   };
 }
+
+exports.dropScheduled = function(audio) {
+  return function() {
+    var queueLength = audio.queue.length;
+
+    // Stop all scheduled segments
+    for (var i = 0; i < queueLength; i++) {
+      var segment = audio.queue[i];
+
+      if (segment.node && !segment.playbackFinished) {
+        segment.node.stop();
+        // TODO: Free node data?
+      }
+    }
+
+    // Don't reschedule dropped segments
+    audio.nextToSchedule = queueLength;
+  };
+}

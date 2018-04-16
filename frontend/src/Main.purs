@@ -9,9 +9,8 @@ import Control.Monad.Aff (Aff, Milliseconds(..), delay)
 import Control.Monad.Aff.Console (log)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE)
-import Data.Array (filter, index)
+import Data.Array (filter, index, length)
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -37,12 +36,13 @@ type State = {
   songs :: Array Song,
   playlist :: Array Song,
   playback :: PlaybackState,
-  lastScheduled :: SegmentIdx
+  nextToSchedule :: Maybe SegmentIdx
 }
 
 data Query a
   = Toggle a
-  | FetchSongs a
+  | NextSong a
+  | Init a
   | AddToPlaylist Song a
   | RemoveFromPlaylist Song a
 
@@ -53,7 +53,7 @@ player audio =
     , render
     , eval
     , receiver: const Nothing
-    , initializer: Just (H.action FetchSongs)
+    , initializer: Just (H.action Init)
     , finalizer: Nothing
     }
   where
@@ -63,7 +63,7 @@ player audio =
     songs: [],
     playlist: [],
     playback: Paused,
-    lastScheduled: { songIdx: 0, songSegmentIdx: 0 }
+    nextToSchedule: Nothing
   }
 
   renderSong :: forall a. (Song -> Unit -> Query Unit) -> Song -> H.ComponentHTML Query
@@ -89,19 +89,21 @@ player audio =
 
   render :: State -> H.ComponentHTML Query
   render state =
-    let
-      label = if isPlaying state.playback then "⏸" else "▶"
-    in
-      HH.div [HP.class_ (H.ClassName "main")]
-        [
-          renderSongList (state.songs),
-          HH.button
-            [ HP.title label
-            , HE.onClick (HE.input_ Toggle)
-            ]
-            [ HH.text label ],
-          renderPlaylist (state.playlist)
-        ]
+    HH.div [HP.class_ (H.ClassName "main")]
+      [
+        renderSongList (state.songs),
+        HH.button
+          []
+          [ HH.text "⏮" ],
+        HH.button
+          [ HE.onClick (HE.input_ Toggle)
+          ]
+          [ HH.text  if isPlaying state.playback then "⏸" else "▶" ],
+        HH.button
+          [ HE.onClick (HE.input_ NextSong) ]
+          [ HH.text "⏭" ],
+        renderPlaylist (state.playlist)
+      ]
 
   eval :: Query ~> H.ComponentDSL State Query Void (Aff (aws :: AWS, console :: CONSOLE, audio :: AUDIO | e))
   eval = case _ of
@@ -115,13 +117,23 @@ player audio =
           H.liftEff (pausePlayback audio)
           H.modify (\s -> s { playback = Paused })
       pure next
-    FetchSongs next -> do
+    NextSong next -> do
+      H.liftEff (dropScheduled audio)
+      playlist <- H.gets _.playlist
+      currentSongIdxMaybe <- H.gets (_.nextToSchedule >>> map _.songIdx) -- TODO: Get playing song
+      let nextSegmentIdx = currentSongIdxMaybe >>= nextSongFirstSegment playlist
+      H.modify (\s -> s { nextToSchedule = nextSegmentIdx })
+      pure next
+    Init next -> do
       _ <- H.fork fillQueue
       songs <- H.liftAff getSongs
       H.modify (\s -> s { songs = songs })
       pure next
     AddToPlaylist song next -> do
-      H.modify (\s -> s { playlist = s.playlist <> [song] })
+      playlist <- H.gets _.playlist
+      when (length playlist == 0) $ do
+        H.modify (\s -> s { nextToSchedule = Just ({ songIdx: 0, songSegmentIdx: 1 }) })
+      H.modify (\s -> s { playlist = playlist <> [song] })
       pure next
     RemoveFromPlaylist song next -> do
       H.modify (\s -> s { playlist = filter (_ /= song) s.playlist})
@@ -133,19 +145,16 @@ player audio =
     nextId <- if len < 5
       then do
         playlist <- H.gets _.playlist
-        lastScheduled <- H.gets _.lastScheduled
-        let nextMaybe = do
-                          next <- nextSegment playlist lastScheduled
-                          nextId <- segmentId playlist next
-                          pure (Tuple next nextId)
-        case nextMaybe of
-          Just (Tuple next nextId) -> do
-            buf <- H.liftAff (getArrayBufferObject (nextId <> ".ogg"))
+        nextToSchedule <- H.gets _.nextToSchedule
+        -- TODO: Next song pre-fetching
+        case nextToSchedule >>= segmentId playlist of
+          Just toScheduleId -> do
+            buf <- H.liftAff (getArrayBufferObject (toScheduleId <> ".ogg"))
             audioData <- H.liftEff (decode audio buf)
             H.liftEff (enqueue audio audioData)
-            H.modify (\s -> s { lastScheduled = next })
             pure unit
           Nothing -> pure unit
+        H.modify (\s -> s { nextToSchedule = nextToSchedule >>= nextSegment playlist })
       else pure unit
     H.liftAff (delay (Milliseconds 500.0))
     fillQueue
@@ -158,6 +167,12 @@ nextSegment playlist { songIdx, songSegmentIdx } =
         then { songIdx: songIdx + 1, songSegmentIdx: 1 }
         else { songIdx: songIdx, songSegmentIdx: songSegmentIdx + 1 })
     (index playlist songIdx)
+
+nextSongFirstSegment :: Array Song -> Int -> Maybe SegmentIdx
+nextSongFirstSegment playlist songIdx =
+  if songIdx + 1 < length playlist
+    then Just { songIdx: songIdx + 1, songSegmentIdx: 1 }
+    else Nothing
 
 segmentId :: Array Song -> SegmentIdx -> Maybe String
 segmentId playlist { songIdx, songSegmentIdx } =

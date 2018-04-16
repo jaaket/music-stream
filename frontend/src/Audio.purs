@@ -27,6 +27,7 @@ pausePlayback :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
 pausePlayback = _pausePlayback
 
 foreign import queueLength :: forall e. Audio -> Eff (audio :: AUDIO | e) Int
+foreign import dropScheduled :: forall e. Audio -> Eff (audio :: AUDIO | e) Unit
 
 foreign import _initAudio :: forall e. Eff (audio :: AUDIO | e) Audio
 foreign import _decode :: forall e. Audio -> ArrayBuffer -> Eff (audio :: AUDIO | e) AudioBuffer
