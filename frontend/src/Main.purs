@@ -81,7 +81,8 @@ type State = {
   playback :: PlaybackState,
   nextToSchedule :: Maybe PlaylistSegmentIdx,
   audioCache :: Map SongSegmentIdx AudioBuffer,
-  idGenState :: Int
+  idGenState :: Int,
+  playingSong :: Maybe EntryId
 }
 
 data Query a
@@ -113,7 +114,8 @@ player audio =
     playback: Paused,
     nextToSchedule: Nothing,
     audioCache: Map.empty,
-    idGenState: 0
+    idGenState: 0,
+    playingSong: Nothing
   }
 
   renderSong :: forall a. (Song -> Unit -> Query Unit) -> Song -> H.ComponentHTML Query
@@ -132,23 +134,27 @@ player audio =
     HH.div [ HP.class_ (H.ClassName "song-list") ]
       (map (renderSong AddToPlaylist) songs)
 
-  renderPlaylistEntry :: forall a. (PlaylistEntry -> Unit -> Query Unit) -> PlaylistEntry -> H.ComponentHTML Query
-  renderPlaylistEntry clickHandler entry =
+  renderPlaylistEntry :: forall a. (PlaylistEntry -> Unit -> Query Unit) -> PlaylistEntry -> Boolean -> H.ComponentHTML Query
+  renderPlaylistEntry clickHandler entry highlight =
     let Song { title, album, artist } = entry.song
     in
-      HH.div
-        [ HP.class_ (H.ClassName "song-list__song")
-        , HE.onDoubleClick (HE.input_ (clickHandler entry))
-        ]
+      HH.div (
+          [ HP.classes
+              [ H.ClassName "song-list__song"
+              , H.ClassName (if highlight then "song-list__song--highlight" else "")
+              ]
+          , HE.onDoubleClick (HE.input_ (clickHandler entry))
+          ]
+        )
         [ HH.div [ HP.class_ (H.ClassName "song-list__song-title") ] [ HH.text title ]
         , HH.div [ HP.class_ (H.ClassName "song-list__song-album") ] [ HH.text album ]
         , HH.div [ HP.class_ (H.ClassName "song-list__song-artist") ] [ HH.text artist ]
         ]
 
-  renderPlaylist :: Playlist -> H.ComponentHTML Query
-  renderPlaylist playlist =
+  renderPlaylist :: Playlist -> Maybe EntryId -> H.ComponentHTML Query
+  renderPlaylist playlist playingSong =
     HH.div [ HP.class_ (H.ClassName "song-list") ]
-      (map (renderPlaylistEntry SkipToSong) playlist)
+      (map (\entry -> renderPlaylistEntry SkipToSong entry (Just entry.entryId == playingSong)) playlist)
 
   render :: State -> H.ComponentHTML Query
   render state =
@@ -165,7 +171,7 @@ player audio =
         HH.button
           [ HE.onClick (HE.input_ NextSong) ]
           [ HH.text "⏭" ],
-        renderPlaylist (state.playlist)
+        renderPlaylist state.playlist state.playingSong
       ]
 
   genNextEntryId :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) Int
@@ -195,6 +201,7 @@ player audio =
       pure next
     Init next -> do
       _ <- H.fork fillQueue
+      _ <- H.fork updatePlaybackStatus
       songs <- H.liftAff getSongs
       H.modify (\s -> s { songs = songs })
       pure next
@@ -215,18 +222,21 @@ player audio =
       H.modify (\s -> s { nextToSchedule = Just (PlaylistSegmentIdx { entryId: entry.entryId, segmentWithinEntryIdx: 1 }) })
       pure next
 
+  updatePlaybackStatus :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) Unit
+  updatePlaybackStatus = do
+    info <- H.liftEff (playbackInfo audio)
+    case decodeJson info of
+      Right (PlaylistSegmentIdx segmentIdx) -> do
+        H.modify (\s -> s { playingSong = Just segmentIdx.entryId })
+      _ -> pure unit
+    H.liftAff (delay (Milliseconds 100.0))
+    updatePlaybackStatus
+
   nextSongSegment :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) (Maybe PlaylistSegmentIdx)
   nextSongSegment = do
     playlist <- H.gets _.playlist
-    info <- H.liftEff (playbackInfo audio)
-    let playingSegmentMaybe =
-          case decodeJson info of
-            Right segmentIdx -> segmentIdx
-            _ -> Nothing
-    let nextSegmentIdx = do
-          PlaylistSegmentIdx playingSegment <- playingSegmentMaybe
-          nextSongFirstSegment playlist playingSegment.entryId
-    pure nextSegmentIdx
+    playingEntryIdMaybe <- H.gets _.playingSong
+    pure (playingEntryIdMaybe >>= nextSongFirstSegment playlist)
 
   getSegmentAudio :: SongSegmentIdx -> H.ComponentDSL State Query Void (Aff (PlayerEffects e)) AudioBuffer
   getSegmentAudio segmentIdx@(SongSegmentIdx { songUuid, segmentWithinSongIdx } ) = do
