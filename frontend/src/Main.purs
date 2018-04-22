@@ -11,7 +11,7 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, warn)
 import Data.Argonaut (class DecodeJson, class EncodeJson, decodeJson, encodeJson, (.?))
 import Data.Argonaut.Core as Json
-import Data.Array (dropWhile, filter, find, index, length, take)
+import Data.Array (dropWhile, filter, find, index, length, nub, sort, sortWith, take)
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
 import Data.Generic (class Generic, gShow)
@@ -27,6 +27,7 @@ import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Query.InputF (InputF(..))
 import Halogen.VDom.Driver (runUI)
 
 
@@ -118,7 +119,16 @@ player audio =
     playingSong: Nothing
   }
 
-  renderSong :: forall a. (Song -> Unit -> Query Unit) -> Song -> H.ComponentHTML Query
+  renderArtists :: Array Song -> H.ComponentHTML Query
+  renderArtists songs =
+    let
+      artists = sort (nub (map (\(Song song) -> song.artist) songs))
+    in
+      HH.select
+        [ HP.class_ (H.ClassName "artist-list") ]
+        (map (\artist -> HH.option_ [ HH.text artist ]) artists)
+
+  renderSong :: (Song -> Unit -> Query Unit) -> Song -> H.ComponentHTML Query
   renderSong clickHandler song@(Song {title, album, artist}) =
     HH.div
       [ HP.class_ (H.ClassName "song-list__song")
@@ -134,7 +144,7 @@ player audio =
     HH.div [ HP.class_ (H.ClassName "song-list") ]
       (map (renderSong AddToPlaylist) songs)
 
-  renderPlaylistEntry :: forall a. (PlaylistEntry -> Unit -> Query Unit) -> PlaylistEntry -> Boolean -> H.ComponentHTML Query
+  renderPlaylistEntry :: (PlaylistEntry -> Unit -> Query Unit) -> PlaylistEntry -> Boolean -> H.ComponentHTML Query
   renderPlaylistEntry clickHandler entry highlight =
     let Song { title, album, artist } = entry.song
     in
@@ -160,7 +170,7 @@ player audio =
   render state =
     HH.div [ HP.class_ (H.ClassName "main") ]
       [
-        renderSongList (state.songs),
+        renderArtists state.songs,
         HH.div [ HP.class_ (H.ClassName "player-controls") ]
           [
             HH.button
