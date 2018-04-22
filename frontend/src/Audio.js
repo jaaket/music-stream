@@ -101,15 +101,18 @@ exports._decode = function(audio) {
 
 exports._enqueue = function(audio) {
   return function(audioBuffer) {
-    return function() {
-      audio.queue.push({
-        buffer: audioBuffer,
-        node: null, // Initialized when scheduled
-        playbackStartTime: null, // Global time
-        progress: 0, // How much segment has been played
-        playbackFinished: false,
-        dontFinish: false // Don't mark as finished when playback ends (useful for pausing)
-      });
+    return function(metadata) {
+      return function() {
+        audio.queue.push({
+          buffer: audioBuffer,
+          node: null, // Initialized when scheduled
+          playbackStartTime: null, // Global time
+          progress: 0, // How much segment has been played
+          playbackFinished: false,
+          dontFinish: false, // Don't mark as finished when playback ends (useful for pausing)
+          metadata: metadata
+        });
+      };
     };
   };
 }
@@ -121,6 +124,17 @@ exports._startPlayback = function() {
     };
   };
 }();
+
+function currentlyPlayingSegment(audio) {
+  for (var i = 0; i < audio.queue.length; i++) {
+    var segment = audio.queue[i];
+
+    if (segment.node && !segment.playbackFinished) {
+      return segment;
+    }
+  }
+  return null;
+}
 
 exports._pausePlayback = function(audio) {
   return function() {
@@ -169,5 +183,16 @@ exports.dropScheduled = function(audio) {
 
     // Don't reschedule dropped segments
     audio.nextToSchedule = queueLength;
+  };
+}
+
+exports.playbackInfo = function(audio) {
+  return function() {
+    var playingSegment = currentlyPlayingSegment(audio);
+    if (playingSegment !== null) {
+      return playingSegment.metadata;
+    } else {
+      return null;
+    }
   };
 }
