@@ -38,17 +38,20 @@ isPlaying :: PlaybackState -> Boolean
 isPlaying Playing = true
 isPlaying Paused = false
 
-data SegmentIdx = SegmentIdx {
-  playlistEntryId :: Int,
-  songSegmentIdx :: Int
+type EntryId = Int
+
+data PlaylistSegmentIdx = PlaylistSegmentIdx {
+  entryId :: EntryId,
+  segmentWithinEntryIdx :: Int
 }
 
-derive instance genericSegmentIdx :: Generic SegmentIdx
+data SongSegmentIdx = SongSegmentIdx {
+  songUuid :: String,
+  segmentWithinSongIdx :: Int
+}
 
-instance showSegmentIdx :: Show SegmentIdx where
-  show = gShow
-
-type EntryId = Int
+derive instance eqSongSegmentIdx :: Eq SongSegmentIdx
+derive instance ordSongSegmentIdx :: Ord SongSegmentIdx
 
 type PlaylistEntry = {
   entryId :: EntryId,
@@ -57,27 +60,27 @@ type PlaylistEntry = {
 
 type Playlist = Array PlaylistEntry
 
-instance decodeJsonSegmentIdx :: DecodeJson SegmentIdx where
+instance decodeJsonPlaylistSegmentIdx :: DecodeJson PlaylistSegmentIdx where
   decodeJson json = do
     obj <- decodeJson json
-    playlistEntryId <- obj .? "playlistEntryId"
-    songSegmentIdx <- obj .? "songSegmentIdx"
-    pure $ SegmentIdx { playlistEntryId: playlistEntryId, songSegmentIdx: songSegmentIdx }
+    entryId <- obj .? "entryId"
+    segmentWithinEntryIdx <- obj .? "segmentWithinEntryIdx"
+    pure $ PlaylistSegmentIdx { entryId: entryId, segmentWithinEntryIdx: segmentWithinEntryIdx }
 
-instance encodeJsonSegmentIdx :: EncodeJson SegmentIdx where
-  encodeJson (SegmentIdx { playlistEntryId, songSegmentIdx }) =
+instance encodeJsonPlaylistSegmentIdx :: EncodeJson PlaylistSegmentIdx where
+  encodeJson (PlaylistSegmentIdx { entryId, segmentWithinEntryIdx }) =
     Json.fromObject $
       StrMap.fromFoldable [
-        Tuple "playlistEntryId" (Json.fromNumber (toNumber playlistEntryId)),
-        Tuple "songSegmentIdx" (Json.fromNumber (toNumber songSegmentIdx))
+        Tuple "entryId" (Json.fromNumber (toNumber entryId)),
+        Tuple "segmentWithinEntryIdx" (Json.fromNumber (toNumber segmentWithinEntryIdx))
       ]
 
 type State = {
   songs :: Array Song,
   playlist :: Playlist,
   playback :: PlaybackState,
-  nextToSchedule :: Maybe SegmentIdx,
-  audioCache :: Map String AudioBuffer,
+  nextToSchedule :: Maybe PlaylistSegmentIdx,
+  audioCache :: Map SongSegmentIdx AudioBuffer,
   idGenState :: Int
 }
 
@@ -198,7 +201,7 @@ player audio =
       playlist <- H.gets _.playlist
       entryId <- genNextEntryId
       when (length playlist == 0) $ do
-        H.modify (\s -> s { nextToSchedule = Just (SegmentIdx { playlistEntryId: entryId, songSegmentIdx: 1 }) })
+        H.modify (\s -> s { nextToSchedule = Just (PlaylistSegmentIdx { entryId: entryId, segmentWithinEntryIdx: 1 }) })
       H.modify (\s -> s { playlist = playlist <> [{ song: song, entryId: entryId }] })
       pure next
     RemoveFromPlaylist entry next -> do
@@ -206,7 +209,7 @@ player audio =
       H.modify (\s -> s { playlist = filter (\e -> e.entryId /= entry.entryId) s.playlist})
       pure next
 
-  nextSongSegment :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) (Maybe SegmentIdx)
+  nextSongSegment :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) (Maybe PlaylistSegmentIdx)
   nextSongSegment = do
     playlist <- H.gets _.playlist
     info <- H.liftEff (playbackInfo audio)
@@ -215,19 +218,19 @@ player audio =
             Right segmentIdx -> segmentIdx
             _ -> Nothing
     let nextSegmentIdx = do
-          SegmentIdx playingSegment <- playingSegmentMaybe
-          nextSongFirstSegment playlist playingSegment.playlistEntryId
+          PlaylistSegmentIdx playingSegment <- playingSegmentMaybe
+          nextSongFirstSegment playlist playingSegment.entryId
     pure nextSegmentIdx
 
-  getSegmentAudio :: String -> H.ComponentDSL State Query Void (Aff (PlayerEffects e)) AudioBuffer
-  getSegmentAudio segmentId = do
+  getSegmentAudio :: SongSegmentIdx -> H.ComponentDSL State Query Void (Aff (PlayerEffects e)) AudioBuffer
+  getSegmentAudio segmentIdx@(SongSegmentIdx { songUuid, segmentWithinSongIdx } ) = do
     cache <- H.gets _.audioCache
-    case Map.lookup segmentId cache of
+    case Map.lookup segmentIdx cache of
       Just segmentAudio -> pure segmentAudio
       Nothing -> do
-        buf <- H.liftAff (getArrayBufferObject (segmentId <> ".ogg"))
+        buf <- H.liftAff (getArrayBufferObject (songUuid <> "-" <> show segmentWithinSongIdx <> ".ogg"))
         audioData <- H.liftEff (decode audio buf)
-        H.modify (\s -> s { audioCache = Map.insert segmentId audioData s.audioCache })
+        H.modify (\s -> s { audioCache = Map.insert segmentIdx audioData s.audioCache })
         pure audioData
 
   fillQueue :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) Unit
@@ -235,26 +238,22 @@ player audio =
     playlist <- H.gets _.playlist
     len <- H.liftEff (queueLength audio)
 
-    nextSegmentIdxMaybe <- nextSongSegment
-    case nextSegmentIdxMaybe of
-      Just (SegmentIdx nextSegmentIdx) ->
-        case findEntry playlist nextSegmentIdx.playlistEntryId of
-          Just playlistEntry -> do
-            _ <- getSegmentAudio (formatSegmentId playlistEntry.song nextSegmentIdx.songSegmentIdx)
-            pure unit
-          Nothing -> pure unit
+    -- TODO: Move to separate definition
+    nextSongFirstSegmentMaybe <- nextSongSegment
+    case nextSongFirstSegmentMaybe >>= songSegmentIdx playlist of
+      Just nextSongFirstSegment -> do
+         _ <- getSegmentAudio nextSongFirstSegment
+         pure unit
       Nothing -> pure unit
 
+    -- TODO: Move to separate definition
     when (len < 5) $ do
       nextToScheduleMaybe <- H.gets _.nextToSchedule
       case nextToScheduleMaybe of
-        Just nextToSchedule@(SegmentIdx {playlistEntryId, songSegmentIdx}) ->
-          let toScheduleIdMaybe = do
-                entry <- findEntry playlist playlistEntryId
-                Just (formatSegmentId entry.song songSegmentIdx)
-          in  case toScheduleIdMaybe of
-            Just toScheduleId -> do
-              audioData <- getSegmentAudio toScheduleId
+        Just nextToSchedule ->
+          case songSegmentIdx playlist nextToSchedule of
+            Just nextToScheduleSongSegmentIdx -> do
+              audioData <- getSegmentAudio nextToScheduleSongSegmentIdx
               H.liftEff (enqueue audio audioData (encodeJson nextToSchedule))
               H.modify (\s -> s { nextToSchedule = nextSegment playlist nextToSchedule })
             Nothing -> pure unit
@@ -262,15 +261,20 @@ player audio =
     H.liftAff (delay (Milliseconds 200.0))
     fillQueue
 
-nextSegment :: Playlist -> SegmentIdx -> Maybe SegmentIdx
-nextSegment playlist (SegmentIdx { playlistEntryId, songSegmentIdx }) = do
-  playlistEntry <- find (\e -> e.entryId == playlistEntryId) playlist
+songSegmentIdx :: Playlist -> PlaylistSegmentIdx -> Maybe SongSegmentIdx
+songSegmentIdx playlist (PlaylistSegmentIdx { entryId, segmentWithinEntryIdx }) = do
+  {song: Song { uuid: songUuid }} <- findEntry playlist entryId
+  Just (SongSegmentIdx { songUuid: songUuid, segmentWithinSongIdx: segmentWithinEntryIdx })
+
+nextSegment :: Playlist -> PlaylistSegmentIdx -> Maybe PlaylistSegmentIdx
+nextSegment playlist (PlaylistSegmentIdx { entryId, segmentWithinEntryIdx }) = do
+  playlistEntry <- find (\e -> e.entryId == entryId) playlist
   let Song song = playlistEntry.song
-  if songSegmentIdx >= song.numSegments
+  if segmentWithinEntryIdx >= song.numSegments
     then
       nextSongFirstSegment playlist playlistEntry.entryId
     else
-      pure (SegmentIdx { playlistEntryId: playlistEntryId, songSegmentIdx: songSegmentIdx + 1 })
+      pure (PlaylistSegmentIdx { entryId: entryId, segmentWithinEntryIdx: segmentWithinEntryIdx + 1 })
 
 nextSongEntryId :: Playlist -> EntryId -> Maybe EntryId
 nextSongEntryId playlist entryId =
@@ -278,16 +282,13 @@ nextSongEntryId playlist entryId =
     [current, next] -> Just next.entryId
     _ -> Nothing
 
-nextSongFirstSegment :: Playlist -> EntryId -> Maybe SegmentIdx
+nextSongFirstSegment :: Playlist -> EntryId -> Maybe PlaylistSegmentIdx
 nextSongFirstSegment playlist entryId = do
   nextSong <- nextSongEntryId playlist entryId
-  pure (SegmentIdx { playlistEntryId: nextSong, songSegmentIdx: 1 })
+  pure (PlaylistSegmentIdx { entryId: nextSong, segmentWithinEntryIdx: 1 })
 
 findEntry :: Playlist -> EntryId -> Maybe PlaylistEntry
 findEntry playlist playlistEntryId = find (\e -> e.entryId == playlistEntryId) playlist
-
-formatSegmentId :: Song -> Int -> String
-formatSegmentId (Song song) songSegmentIdx = song.uuid <> "-" <> show songSegmentIdx
 
 main :: Eff (PlayerEffects (HA.HalogenEffects ())) Unit
 main = HA.runHalogenAff do
