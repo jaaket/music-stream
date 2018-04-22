@@ -158,19 +158,24 @@ player audio =
 
   render :: State -> H.ComponentHTML Query
   render state =
-    HH.div [HP.class_ (H.ClassName "main")]
+    HH.div [ HP.class_ (H.ClassName "main") ]
       [
         renderSongList (state.songs),
-        HH.button
-          []
-          [ HH.text "⏮" ],
-        HH.button
-          [ HE.onClick (HE.input_ Toggle)
-          ]
-          [ HH.text  if isPlaying state.playback then "⏸" else "▶" ],
-        HH.button
-          [ HE.onClick (HE.input_ NextSong) ]
-          [ HH.text "⏭" ],
+        HH.div [ HP.class_ (H.ClassName "player-controls") ]
+          [
+            HH.button
+              [ HP.class_ (H.ClassName "player-controls__button") ]
+              [ HH.text "⏮" ],
+            HH.button
+              [ HP.class_ (H.ClassName "player-controls__button")
+              , HE.onClick (HE.input_ Toggle)
+              ]
+              [ HH.text  if isPlaying state.playback then "⏸" else "▶" ],
+            HH.button
+              [ HP.class_ (H.ClassName "player-controls__button")
+              , HE.onClick (HE.input_ NextSong) ]
+              [ HH.text "⏭" ]
+          ],
         renderPlaylist state.playlist state.playingSong
       ]
 

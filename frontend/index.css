@@ -4,7 +4,7 @@ body {
   justify-content: space-around;
   font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
   font-size: 15px;
-  background-color: #404040;
+  background-color: #202020;
   color: #ffffff;
 }
 
@@ -15,6 +15,22 @@ body {
   flex-direction: column;
   align-items: stretch;
   justify-content: stretch;
+}
+
+.player-controls {
+  display: flex;
+  height: 80px;
+  border: 2px solid #8AE3F0;
+  border-radius: 4px;
+}
+
+.player-controls__button {
+  flex-grow: 1;
+  font-size: 40px;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  color: #8AE3F0;
 }
 
 .song-list {
