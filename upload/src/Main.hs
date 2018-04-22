@@ -12,6 +12,7 @@ import qualified Data.Ini.List as Ini
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Data.Text as T
+import Data.Char (toLower)
 import Turtle
 import Prelude hiding (FilePath)
 import GHC.Generics (Generic)
@@ -23,7 +24,8 @@ parser = argPath "file"  "File to upload"
 data Metadata = Metadata {
   title :: T.Text,
   album :: T.Text,
-  artist :: T.Text
+  artist :: T.Text,
+  track :: Maybe T.Text
 } deriving (Generic)
 
 data Song = Song {
@@ -41,11 +43,12 @@ readMetadata :: FilePath -> FilePath -> IO Metadata
 readMetadata workDir file = do
   let metadataPath = workDir <> "metadata.ini"
   proc "ffmpeg" ["-i", format fp file, "-f", "ffmetadata", format fp metadataPath] empty
-  Just metadata <- liftIO (Ini.parseFile (encodeString metadataPath))
+  Just metadata <-  fmap (Ini.updateDefaultOptions (\key value -> Just (map toLower key, value))) <$> Ini.parseFile (encodeString metadataPath)
   let (Just title) :: Maybe String = Ini.get metadata Nothing "title"
   let (Just album) :: Maybe String = Ini.get metadata Nothing "album"
   let (Just artist) :: Maybe String = Ini.get metadata Nothing "artist"
-  return $ Metadata (T.pack title) (T.pack album) (T.pack artist)
+  let (Just track) :: Maybe String = Ini.get metadata Nothing "track"
+  return $ Metadata (T.pack title) (T.pack album) (T.pack artist) (Just (T.pack track))
 
 upload :: FilePath -> Shell ()
 upload file = do
