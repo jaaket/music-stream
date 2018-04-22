@@ -90,6 +90,7 @@ data Query a
   | Init a
   | AddToPlaylist Song a
   | RemoveFromPlaylist PlaylistEntry a
+  | SkipToSong PlaylistEntry a
 
 type PlayerEffects e = (aws :: AWS, console :: CONSOLE, audio :: AUDIO | e)
 
@@ -137,7 +138,7 @@ player audio =
     in
       HH.div
         [ HP.class_ (H.ClassName "song-list__song")
-        , HE.onClick (HE.input_ (clickHandler entry))
+        , HE.onDoubleClick (HE.input_ (clickHandler entry))
         ]
         [ HH.div [ HP.class_ (H.ClassName "song-list__song-title") ] [ HH.text title ]
         , HH.div [ HP.class_ (H.ClassName "song-list__song-album") ] [ HH.text album ]
@@ -147,7 +148,7 @@ player audio =
   renderPlaylist :: Playlist -> H.ComponentHTML Query
   renderPlaylist playlist =
     HH.div [ HP.class_ (H.ClassName "song-list") ]
-      (map (renderPlaylistEntry RemoveFromPlaylist) playlist)
+      (map (renderPlaylistEntry SkipToSong) playlist)
 
   render :: State -> H.ComponentHTML Query
   render state =
@@ -208,6 +209,11 @@ player audio =
       -- TODO: If currently playing song is removed, the next song should start playing
       H.modify (\s -> s { playlist = filter (\e -> e.entryId /= entry.entryId) s.playlist})
       pure next
+    SkipToSong entry next -> do
+      playlist <- H.gets _.playlist
+      H.liftEff (dropScheduled audio)
+      H.modify (\s -> s { nextToSchedule = Just (PlaylistSegmentIdx { entryId: entry.entryId, segmentWithinEntryIdx: 1 }) })
+      pure next
 
   nextSongSegment :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) (Maybe PlaylistSegmentIdx)
   nextSongSegment = do
@@ -258,7 +264,7 @@ player audio =
               H.modify (\s -> s { nextToSchedule = nextSegment playlist nextToSchedule })
             Nothing -> pure unit
         Nothing -> pure unit
-    H.liftAff (delay (Milliseconds 200.0))
+    H.liftAff (delay (Milliseconds 100.0))
     fillQueue
 
 songSegmentIdx :: Playlist -> PlaylistSegmentIdx -> Maybe SongSegmentIdx
