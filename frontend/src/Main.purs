@@ -164,7 +164,7 @@ player audio =
             [ HP.class_ (H.ClassName "list-item")
             , HE.onDoubleClick (HE.input_ (AddToPlaylist song)) ]
             [ HH.text title ])
-        songs)
+        (sortWith (\(Song { track }) -> track) songs))
 
   renderPlaylistEntry :: (PlaylistEntry -> Unit -> Query Unit) -> PlaylistEntry -> Boolean -> H.ComponentHTML Query
   renderPlaylistEntry clickHandler entry highlight =

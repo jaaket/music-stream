@@ -3,20 +3,23 @@ module SongRepository where
 import Data.Argonaut.Decode
 import Data.Generic
 import Prelude
+import S3
 
 import Control.Monad.Aff (Aff, throwError)
 import Control.Monad.Eff.Exception (error)
 import Data.Either (Either(..))
+import Data.Int (fromString)
+import Data.Maybe (Maybe(..))
+import Data.String (Pattern(..), split)
 import Network.HTTP.Affjax (get, AJAX)
-
-import S3
 
 newtype Song = Song {
   uuid :: String,
   title :: String,
   album :: String,
   artist :: String,
-  numSegments :: Int
+  numSegments :: Int,
+  track :: Maybe Int
 }
 
 instance eqSong :: Eq Song where
@@ -35,8 +38,14 @@ instance decodeJsonSong :: DecodeJson Song where
     title <- metadata .? "title"
     album <- metadata .? "album"
     artist <- metadata .? "artist"
+    trackStrMaybe :: Maybe String <- metadata .? "track" --
+    let track = trackStrMaybe >>= \trackStr ->
+          case split (Pattern "/") trackStr of
+            [track, total] -> fromString track
+            [track] -> fromString track
+            _ -> Nothing
     numSegments <- obj .? "numSegments"
-    pure $ Song { uuid, title, album, artist, numSegments }
+    pure $ Song { uuid, title, album, artist, numSegments, track }
 
 getSongs :: forall e. Aff (aws :: AWS | e) (Array Song)
 getSongs = do
