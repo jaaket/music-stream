@@ -14,6 +14,7 @@ import Data.Argonaut.Core as Json
 import Data.Array (dropWhile, elem, filter, find, index, length, nub, sort, sortWith, take)
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
+import Data.Foldable (traverse_)
 import Data.Generic (class Generic, gShow)
 import Data.Int (toNumber)
 import Data.Map (Map)
@@ -93,6 +94,7 @@ data Query a
   | NextSong a
   | Init a
   | AddToPlaylist Song a
+  | AddAlbumToPlaylist String a
   | RemoveFromPlaylist PlaylistEntry a
   | SkipToSong PlaylistEntry a
   | SelectArtist String a
@@ -151,7 +153,8 @@ player audio =
           (\album ->
             HH.div
               [ HP.class_ (H.ClassName "list-item")
-              , HE.onClick (HE.input_ (SelectAlbum album)) ]
+              , HE.onClick (HE.input_ (SelectAlbum album))
+              , HE.onDoubleClick (HE.input_ (AddAlbumToPlaylist album)) ]
               [ HH.text album ])
           albums)
 
@@ -247,11 +250,14 @@ player audio =
       H.modify (\s -> s { songs = songs })
       pure next
     AddToPlaylist song next -> do
-      playlist <- H.gets _.playlist
-      entryId <- genNextEntryId
-      when (length playlist == 0) $ do
-        H.modify (\s -> s { nextToSchedule = Just (PlaylistSegmentIdx { entryId: entryId, segmentWithinEntryIdx: 1 }) })
-      H.modify (\s -> s { playlist = playlist <> [{ song: song, entryId: entryId }] })
+      addSongToPlaylist song
+      pure next
+    AddAlbumToPlaylist album next -> do
+      songs <- H.gets _.songs
+      let albumSongs =
+            sortWith (\(Song { track }) -> track) $
+            filter (\(Song { album: songAlbum }) -> songAlbum == album) songs
+      traverse_ addSongToPlaylist albumSongs
       pure next
     RemoveFromPlaylist entry next -> do
       -- TODO: If currently playing song is removed, the next song should start playing
@@ -271,6 +277,14 @@ player audio =
     SelectAlbum album next -> do
       H.modify (\s -> s { selectedAlbum = Just album })
       pure next
+
+  addSongToPlaylist :: Song -> H.ComponentDSL State Query Void (Aff (PlayerEffects e)) Unit
+  addSongToPlaylist song = do
+    playlist <- H.gets _.playlist
+    entryId <- genNextEntryId
+    when (length playlist == 0) $ do
+      H.modify (\s -> s { nextToSchedule = Just (PlaylistSegmentIdx { entryId: entryId, segmentWithinEntryIdx: 1 }) })
+    H.modify (\s -> s { playlist = playlist <> [{ song: song, entryId: entryId }] })
 
   updatePlaybackStatus :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) Unit
   updatePlaybackStatus = do
