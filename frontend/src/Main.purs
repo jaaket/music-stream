@@ -263,7 +263,10 @@ player audio =
       H.modify (\s -> s { nextToSchedule = Just (PlaylistSegmentIdx { entryId: entry.entryId, segmentWithinEntryIdx: 1 }) })
       pure next
     SelectArtist artist next -> do
-      H.modify (\s -> s { selectedArtist = Just artist })
+      H.modify (\s -> s {
+        selectedArtist = Just artist,
+        selectedAlbum = if elem artist s.selectedArtist then s.selectedAlbum else Nothing
+      })
       pure next
     SelectAlbum album next -> do
       H.modify (\s -> s { selectedAlbum = Just album })
