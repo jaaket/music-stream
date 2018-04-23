@@ -40,6 +40,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
 }
 
 .player-controls {
@@ -73,6 +75,7 @@ body {
   display: flex;
   justify-content: space-between;
   padding: 7px 16px;
+  user-select: none;
   cursor: pointer;
 }
 
