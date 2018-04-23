@@ -10,11 +10,36 @@ body {
 
 .main {
   max-width: 1200px;
-  min-width: 400px;
+  min-width: 500px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: stretch;
+}
+
+.library {
+  display: flex;
+  height: 200px;
+}
+
+.artist-list {
+  flex: 1;
+}
+
+.album-list {
+  flex: 1;
+}
+
+.song-list {
+  flex: 1;
+  overflow-y: scroll;
+}
+
+.list-item {
+  padding: 7px 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .player-controls {
@@ -33,7 +58,11 @@ body {
   color: #8AE3F0;
 }
 
-.song-list {
+.list-item:hover {
+  background-color: rgba(116, 150, 183, 0.2)
+}
+
+.playlist {
   display: flex;
   flex-direction: column;
 }

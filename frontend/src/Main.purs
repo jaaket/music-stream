@@ -11,7 +11,7 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, warn)
 import Data.Argonaut (class DecodeJson, class EncodeJson, decodeJson, encodeJson, (.?))
 import Data.Argonaut.Core as Json
-import Data.Array (dropWhile, filter, find, index, length, nub, sort, sortWith, take)
+import Data.Array (dropWhile, elem, filter, find, index, length, nub, sort, sortWith, take)
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
 import Data.Generic (class Generic, gShow)
@@ -83,7 +83,9 @@ type State = {
   nextToSchedule :: Maybe PlaylistSegmentIdx,
   audioCache :: Map SongSegmentIdx AudioBuffer,
   idGenState :: Int,
-  playingSong :: Maybe EntryId
+  playingSong :: Maybe EntryId,
+  selectedArtist :: Maybe String,
+  selectedAlbum :: Maybe String
 }
 
 data Query a
@@ -93,6 +95,8 @@ data Query a
   | AddToPlaylist Song a
   | RemoveFromPlaylist PlaylistEntry a
   | SkipToSong PlaylistEntry a
+  | SelectArtist String a
+  | SelectAlbum String a
 
 type PlayerEffects e = (aws :: AWS, console :: CONSOLE, audio :: AUDIO | e)
 
@@ -116,7 +120,9 @@ player audio =
     nextToSchedule: Nothing,
     audioCache: Map.empty,
     idGenState: 0,
-    playingSong: Nothing
+    playingSong: Nothing,
+    selectedArtist: Nothing,
+    selectedAlbum: Nothing
   }
 
   renderArtists :: Array Song -> H.ComponentHTML Query
@@ -124,25 +130,41 @@ player audio =
     let
       artists = sort (nub (map (\(Song song) -> song.artist) songs))
     in
-      HH.select
+      HH.div
         [ HP.class_ (H.ClassName "artist-list") ]
-        (map (\artist -> HH.option_ [ HH.text artist ]) artists)
+        (map
+          (\artist ->
+            HH.div
+              [ HP.class_ (H.ClassName "list-item")
+              , HE.onClick (HE.input_ (SelectArtist artist)) ]
+              [ HH.text artist ])
+          artists)
 
-  renderSong :: (Song -> Unit -> Query Unit) -> Song -> H.ComponentHTML Query
-  renderSong clickHandler song@(Song {title, album, artist}) =
+  renderAlbums :: Array Song -> H.ComponentHTML Query
+  renderAlbums songs =
+    let
+      albums = sort (nub (map (\(Song song) -> song.album) songs))
+    in
+      HH.div
+        [ HP.class_ (H.ClassName "album-list") ]
+        (map
+          (\album ->
+            HH.div
+              [ HP.class_ (H.ClassName "list-item")
+              , HE.onClick (HE.input_ (SelectAlbum album)) ]
+              [ HH.text album ])
+          albums)
+
+  renderSongs :: Array Song -> H.ComponentHTML Query
+  renderSongs songs =
     HH.div
-      [ HP.class_ (H.ClassName "song-list__song")
-      , HE.onClick (HE.input_ (clickHandler song))
-      ]
-      [ HH.div [ HP.class_ (H.ClassName "song-list__song-title") ] [ HH.text title ]
-      , HH.div [ HP.class_ (H.ClassName "song-list__song-album") ] [ HH.text album ]
-      , HH.div [ HP.class_ (H.ClassName "song-list__song-artist") ] [ HH.text artist ]
-      ]
-
-  renderSongList :: Array Song -> H.ComponentHTML Query
-  renderSongList songs =
-    HH.div [ HP.class_ (H.ClassName "song-list") ]
-      (map (renderSong AddToPlaylist) songs)
+      [ HP.class_ (H.ClassName "song-list") ]
+      (map (\song@(Song { title }) ->
+          HH.div
+            [ HP.class_ (H.ClassName "list-item")
+            , HE.onDoubleClick (HE.input_ (AddToPlaylist song)) ]
+            [ HH.text title ])
+        songs)
 
   renderPlaylistEntry :: (PlaylistEntry -> Unit -> Query Unit) -> PlaylistEntry -> Boolean -> H.ComponentHTML Query
   renderPlaylistEntry clickHandler entry highlight =
@@ -163,14 +185,18 @@ player audio =
 
   renderPlaylist :: Playlist -> Maybe EntryId -> H.ComponentHTML Query
   renderPlaylist playlist playingSong =
-    HH.div [ HP.class_ (H.ClassName "song-list") ]
+    HH.div [ HP.class_ (H.ClassName "playlist") ]
       (map (\entry -> renderPlaylistEntry SkipToSong entry (Just entry.entryId == playingSong)) playlist)
 
   render :: State -> H.ComponentHTML Query
   render state =
     HH.div [ HP.class_ (H.ClassName "main") ]
-      [
-        renderArtists state.songs,
+      [ HH.div
+          [ HP.class_ (H.ClassName "library") ]
+          [ renderArtists state.songs
+          , renderAlbums (filter (\(Song song) -> elem song.artist state.selectedArtist) state.songs)
+          , renderSongs (filter (\(Song song) -> elem song.album state.selectedAlbum) state.songs)
+          ],
         HH.div [ HP.class_ (H.ClassName "player-controls") ]
           [
             HH.button
@@ -235,6 +261,12 @@ player audio =
       playlist <- H.gets _.playlist
       H.liftEff (dropScheduled audio)
       H.modify (\s -> s { nextToSchedule = Just (PlaylistSegmentIdx { entryId: entry.entryId, segmentWithinEntryIdx: 1 }) })
+      pure next
+    SelectArtist artist next -> do
+      H.modify (\s -> s { selectedArtist = Just artist })
+      pure next
+    SelectAlbum album next -> do
+      H.modify (\s -> s { selectedAlbum = Just album })
       pure next
 
   updatePlaybackStatus :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) Unit
