@@ -95,6 +95,7 @@ data Query a
   | Init a
   | AddToPlaylist Song a
   | AddAlbumToPlaylist String a
+  | AddArtistToPlaylist String a
   | RemoveFromPlaylist PlaylistEntry a
   | SkipToSong PlaylistEntry a
   | SelectArtist String a
@@ -138,7 +139,9 @@ player audio =
           (\artist ->
             HH.div
               [ HP.class_ (H.ClassName "list-item")
-              , HE.onClick (HE.input_ (SelectArtist artist)) ]
+              , HE.onClick (HE.input_ (SelectArtist artist))
+              , HE.onDoubleClick (HE.input_ (AddArtistToPlaylist artist))
+              ]
               [ HH.text artist ])
           artists)
 
@@ -154,7 +157,8 @@ player audio =
             HH.div
               [ HP.class_ (H.ClassName "list-item")
               , HE.onClick (HE.input_ (SelectAlbum album))
-              , HE.onDoubleClick (HE.input_ (AddAlbumToPlaylist album)) ]
+              , HE.onDoubleClick (HE.input_ (AddAlbumToPlaylist album))
+              ]
               [ HH.text album ])
           albums)
 
@@ -258,6 +262,13 @@ player audio =
             sortWith (\(Song { track }) -> track) $
             filter (\(Song { album: songAlbum }) -> songAlbum == album) songs
       traverse_ addSongToPlaylist albumSongs
+      pure next
+    AddArtistToPlaylist artist next -> do
+      songs <- H.gets _.songs
+      let artistSongs =
+            sortWith (\(Song { track }) -> track) $
+            filter (\(Song { artist: songArtist }) -> songArtist == artist) songs
+      traverse_ addSongToPlaylist artistSongs
       pure next
     RemoveFromPlaylist entry next -> do
       -- TODO: If currently playing song is removed, the next song should start playing
