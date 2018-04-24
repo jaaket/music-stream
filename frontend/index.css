@@ -11,6 +11,7 @@ body {
 .main {
   max-width: 1200px;
   min-width: 500px;
+  height: 95vh;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -18,8 +19,12 @@ body {
 }
 
 .library {
+  height: 30vh;
   display: flex;
-  height: 200px;
+  padding: 5px;
+  border: 1px solid #8AE3F0;
+  border-radius: 4px;
+  margin-bottom: 2px;
 }
 
 .artist-list {
@@ -45,9 +50,9 @@ body {
 }
 
 .player-controls {
+  flex: 0 0 80px;
   display: flex;
-  height: 80px;
-  border: 2px solid #8AE3F0;
+  border: 1px solid #8AE3F0;
   border-radius: 4px;
 }
 
@@ -65,15 +70,23 @@ body {
 }
 
 .playlist {
+  height: 50vh;
   display: flex;
   flex-direction: column;
+  overflow-y: scroll;
+  padding: 5px;
+  margin-bottom: 2px;
+  border: 1px solid #8AE3F0;
+  border-radius: 4px;
 }
 
 .song-list__song {
   list-style: none;
   box-sizing: border-box;
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  min-height: 40px;
   padding: 7px 16px;
   user-select: none;
   cursor: pointer;

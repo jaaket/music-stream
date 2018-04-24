@@ -204,6 +204,7 @@ player audio =
           , renderAlbums (filter (\(Song song) -> elem song.artist state.selectedArtist) state.songs)
           , renderSongs (filter (\(Song song) -> elem song.album state.selectedAlbum) state.songs)
           ],
+        renderPlaylist state.playlist state.playingSong,
         HH.div [ HP.class_ (H.ClassName "player-controls") ]
           [
             HH.button
@@ -218,8 +219,7 @@ player audio =
               [ HP.class_ (H.ClassName "player-controls__button")
               , HE.onClick (HE.input_ NextSong) ]
               [ HH.text "⏭" ]
-          ],
-        renderPlaylist state.playlist state.playingSong
+          ]
       ]
 
   genNextEntryId :: H.ComponentDSL State Query Void (Aff (PlayerEffects e)) Int
@@ -266,7 +266,7 @@ player audio =
     AddArtistToPlaylist artist next -> do
       songs <- H.gets _.songs
       let artistSongs =
-            sortWith (\(Song { track }) -> track) $
+            sortWith (\(Song { album, track }) -> Tuple album track) $
             filter (\(Song { artist: songArtist }) -> songArtist == artist) songs
       traverse_ addSongToPlaylist artistSongs
       pure next
