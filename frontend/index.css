@@ -65,6 +65,42 @@ body {
   color: #8AE3F0;
 }
 
+.player-controls__play {
+  height: 40px;
+  background: url("src/assets/play.svg");
+  background-size: 40px 40px;
+  background-position: 50% 50%;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.player-controls__pause {
+  height: 40px;
+  background: url("src/assets/pause.svg");
+  background-size: 40px 40px;
+  background-position: 50% 50%;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.player-controls__prev {
+  height: 40px;
+  background: url("src/assets/prev.svg");
+  background-size: 40px 40px;
+  background-position: 50% 50%;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.player-controls__next {
+  height: 40px;
+  background: url("src/assets/next.svg");
+  background-size: 40px 40px;
+  background-position: 50% 50%;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
 .list-item:hover {
   background-color: rgba(116, 150, 183, 0.2)
 }

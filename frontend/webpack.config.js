@@ -17,22 +17,6 @@ module.exports = {
     filename: 'bundle.js'
   },
 
-  // module: {
-  //   rules: [
-  //     {
-  //       test: /\.purs$/,
-  //       loader: 'purs-loader',
-  //       exclude: /node_modules/,
-  //       query: {
-  //         src: [
-  //           'bower_components/purescript-*/src/**/*.purs',
-  //           'src/**/*.purs'
-  //         ]
-  //       }
-  //     }
-  //   ]
-  // },
-
   module: {
     rules: [
       {
@@ -46,11 +30,30 @@ module.exports = {
                 'src/**/*.purs'
               ],
               bundle: false,
-              psc: 'psc',
+              psc: 'psa',
               watch: true,
               pscIde: false
             }
           }
+        ]
+      },
+      {
+        test: /\.css$/,
+        use: [
+          {
+            loader: 'style-loader',
+          },
+          {
+            loader: 'css-loader',
+          }
+        ]
+      },
+      {
+        test: /\.svg$/,
+        use: [
+          {
+            loader: 'file-loader',
+          },
         ]
       },
     ]

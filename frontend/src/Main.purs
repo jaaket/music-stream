@@ -209,16 +209,19 @@ player audio =
           [
             HH.button
               [ HP.class_ (H.ClassName "player-controls__button") ]
-              [ HH.text "⏮" ],
+              [ HH.div [ HP.class_ (H.ClassName "player-controls__prev") ] [] ],
             HH.button
               [ HP.class_ (H.ClassName "player-controls__button")
               , HE.onClick (HE.input_ Toggle)
               ]
-              [ HH.text  if isPlaying state.playback then "⏸" else "▶" ],
+              [ if isPlaying state.playback
+                  then HH.div [ HP.class_ (H.ClassName "player-controls__pause") ] []
+                  else HH.div [ HP.class_ (H.ClassName "player-controls__play") ] []
+              ],
             HH.button
               [ HP.class_ (H.ClassName "player-controls__button")
               , HE.onClick (HE.input_ NextSong) ]
-              [ HH.text "⏭" ]
+              [ HH.div [ HP.class_ (H.ClassName "player-controls__next") ] [] ]
           ]
       ]
 
